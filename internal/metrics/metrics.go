@@ -7,12 +7,12 @@ var (
 	proxyLabels   = []string{"dest"}
 )
 
-type LimiterMetric struct {
+type limiterMetric struct {
 	counter *prometheus.CounterVec
 }
 
-func NewLimiterMetric(name string) *LimiterMetric {
-	return &LimiterMetric{
+func newLimiterMetric(name string) *limiterMetric {
+	return &limiterMetric{
 		counter: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: name,
@@ -22,16 +22,16 @@ func NewLimiterMetric(name string) *LimiterMetric {
 	}
 }
 
-func (m *LimiterMetric) Record(allow bool, dest string) {
+func (m *limiterMetric) Record(allow bool, dest string) {
 	m.counter.WithLabelValues("allow", dest).Inc()
 }
 
-type ProxyMetric struct {
+type proxyMetric struct {
 	counter *prometheus.CounterVec
 }
 
-func NewProxyMetric(name string) *LimiterMetric {
-	return &LimiterMetric{
+func newProxyMetric(name string) *proxyMetric {
+	return &proxyMetric{
 		counter: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: name,
@@ -41,6 +41,6 @@ func NewProxyMetric(name string) *LimiterMetric {
 	}
 }
 
-func (m *ProxyMetric) Record(dest string) {
+func (m *proxyMetric) Record(dest string) {
 	m.counter.WithLabelValues(dest).Inc()
 }

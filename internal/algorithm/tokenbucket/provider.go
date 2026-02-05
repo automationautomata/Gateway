@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func Provide(cfg *config.TokenBucketConfig) (limiter.Algorithm, *limiter.State) {
+func Provide(cfg *config.TokenBucketSettings) (limiter.Algorithm, *limiter.State) {
 	alg := newTokenBucket(cfg.Capacity, cfg.Rate)
 	p := params{
 		tokens:     float64(cfg.Capacity),
