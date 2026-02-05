@@ -17,7 +17,7 @@ import (
 
 const (
 	isGlobalLimiterDeafult = false
-	metricEndpoint         = "/metric"
+	metricEndpoint         = "/metrics"
 	healthEndpoint         = "/health"
 )
 
@@ -36,7 +36,8 @@ func Run(cfg config.Config) Shutdown {
 	}
 
 	if cfg.EdgeLimiter.IsGlobalLimiter == nil {
-		*cfg.EdgeLimiter.IsGlobalLimiter = isGlobalLimiterDeafult
+		v := isGlobalLimiterDeafult
+		cfg.EdgeLimiter.IsGlobalLimiter = &v
 	}
 
 	limiter, err := provideRateLimitMiddleware(cfg.EdgeLimiter)
@@ -47,7 +48,7 @@ func Run(cfg config.Config) Shutdown {
 	whitelistMw := mw.NewWhitelist(cfg.Metrics.Hosts...)
 
 	mux := http.NewServeMux()
-	mux.Handle("", proxy)
+	mux.Handle("/", proxy)
 	mux.Handle(healthEndpoint, handlers.Health())
 	mux.Handle(metricEndpoint, whitelistMw.Wrap(promhttp.Handler()))
 

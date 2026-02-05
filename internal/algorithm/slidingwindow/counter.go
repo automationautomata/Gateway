@@ -8,15 +8,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-type slidingWindow struct {
+type slidingWindowCounter struct {
 	windowSize time.Duration
 	bucketSize time.Duration
 	bucketsNum int
 	limit      int64
 }
 
-func newSlidingWindow(window time.Duration, bucketsNum int, limit int64) *slidingWindow {
-	return &slidingWindow{
+func newSlidingWindowCounter(window time.Duration, bucketsNum int, limit int64) *slidingWindowCounter {
+	return &slidingWindowCounter{
 		windowSize: window,
 		bucketSize: window / time.Duration(bucketsNum),
 		bucketsNum: bucketsNum,
@@ -24,7 +24,7 @@ func newSlidingWindow(window time.Duration, bucketsNum int, limit int64) *slidin
 	}
 }
 
-func (sw *slidingWindow) Action(ctx context.Context, state *limiter.State) (*limiter.State, error) {
+func (sw *slidingWindowCounter) Action(ctx context.Context, state *limiter.State) (*limiter.State, error) {
 	p, err := parseCounterParams(state.Params)
 	if err != nil {
 		return nil, errors.Wrap(limiter.ErrIvalidState, err.Error())
@@ -50,7 +50,6 @@ func (sw *slidingWindow) Action(ctx context.Context, state *limiter.State) (*lim
 		p.bucketTimes[targetIndex] = currentBucketStart
 	}
 
-	// clear expired buckets
 	cutoff := now.Add(-sw.windowSize)
 	for i := 0; i < sw.bucketsNum; i++ {
 		if !p.bucketTimes[i].IsZero() && p.bucketTimes[i].Before(cutoff) {
@@ -59,7 +58,6 @@ func (sw *slidingWindow) Action(ctx context.Context, state *limiter.State) (*lim
 		}
 	}
 
-	// sum valid buckets
 	var total int64
 	for i := 0; i < sw.bucketsNum; i++ {
 		start := p.bucketTimes[i]

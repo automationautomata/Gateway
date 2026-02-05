@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func Provide(cfg *config.FixedWindowConfig) (limiter.Algorithm, *limiter.State) {
+func Provide(cfg *config.FixedWindowSettings) (limiter.Algorithm, *limiter.State) {
 	alg := newFixedWindow(cfg.Limit, cfg.WindowDuration)
 	firstState := &limiter.State{
 		Allow:  true,

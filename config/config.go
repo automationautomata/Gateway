@@ -1,6 +1,8 @@
 package config
 
-import "time"
+import (
+	"time"
+)
 
 type HostRules struct {
 	Host    string            `yaml:"host"`
@@ -15,19 +17,19 @@ type ReverseProxyRules struct {
 
 type ReverseProxyConfig struct {
 	Rules         ReverseProxyRules `yaml:"rules"`
-	LimiterConfig *LimiterConfig    `yaml:"limiter"`
+	LimiterConfig *LimiterSettings  `yaml:"limiter"`
 }
 
 type ServerConfig struct {
-	Host         string        `yaml:"hosts"`
+	Host         string        `yaml:"host"`
 	Port         int           `yaml:"port"`
 	ReadTimeout  time.Duration `yaml:"read_timeout"`
 	WriteTimeout time.Duration `yaml:"write_timeout"`
 }
 
 type EdgeLimiterConfig struct {
-	LimiterConfig   LimiterConfig `yaml:"limiter"`
-	IsGlobalLimiter *bool         `yaml:"is_global_limiter, omitempty"`
+	Limiter         LimiterSettings `yaml:"limiter"`
+	IsGlobalLimiter *bool           `yaml:"is_global_limiter, omitempty"`
 }
 
 type MetricsConfig struct {

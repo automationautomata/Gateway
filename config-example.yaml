@@ -1,27 +1,48 @@
 server:
-  hosts: "0.0.0.0"
+  host: "0.0.0.0"
   port: 8080
-  read_timeout: 5s
+  read_timeout: 10s
   write_timeout: 10s
-
-  limiter:
-    limiter_type: fixed_window
-    action:
-      limit: 100
-      window_duration: 1m
 
 proxy:
   rules:
-    default: "http://example:8080"
     hosts:
       - host: "example.com"
         pathes:
-          "/api": "http://api-service:8080"
-          "/static": "http://static-service:8080"
-        default: "http://example-backend:8080"
+          "/api": "http://localhost:9000"
+          "/auth": "http://localhost:9001"
+        default: "http://localhost:9002"
+
+      - host: "another.com"
+        pathes:
+          "/": "http://localhost:9100"
+        default: "http://localhost:9101"
+
+    default: "http://localhost:9200"
 
   limiter:
-    limiter_type: token_bucket
-    action:
-      capacity: 50
-      rate: 5
+    limiter_type: "token_bucket"
+    algorithm:
+      capacity: 100
+      rate: 10.5
+
+    storage:
+      url: "redis://localhost:6379/0"
+      ttl: 1m
+
+
+edge_limiter:
+  limiter:
+    limiter_type: "fixed_window"
+    algorithm:
+      limit: 500
+      window_duration: 1m
+
+    storage:
+      url: "redis://localhost:6379/1"
+
+  is_global_limiter: true
+
+metrics:
+  hosts:
+    - "localhost"

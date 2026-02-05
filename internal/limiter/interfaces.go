@@ -12,6 +12,6 @@ type Algorithm interface {
 }
 
 type Storage interface {
-	Save(key, algorithmName string, state *State) error
-	Get(key, algorithmName string) (*State, error)
+	Save(ctx context.Context, key, algorithmName string, state *State) error
+	Get(ctx context.Context, key, algorithmName string) (*State, error)
 }
