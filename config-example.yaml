@@ -1,0 +1,27 @@
+server:
+  hosts: "0.0.0.0"
+  port: 8080
+  read_timeout: 5s
+  write_timeout: 10s
+
+  limiter:
+    limiter_type: fixed_window
+    action:
+      limit: 100
+      window_duration: 1m
+
+proxy:
+  rules:
+    default: "http://example:8080"
+    hosts:
+      - host: "example.com"
+        pathes:
+          "/api": "http://api-service:8080"
+          "/static": "http://static-service:8080"
+        default: "http://example-backend:8080"
+
+  limiter:
+    limiter_type: token_bucket
+    action:
+      capacity: 50
+      rate: 5
