@@ -1,6 +1,6 @@
 package limiter
 
-type AlgorithmFacede struct {
+type AlgorithmFacade struct {
 	Algorithm
 	unmarsh    Unmarshaler[State]
 	name       string
@@ -9,8 +9,8 @@ type AlgorithmFacede struct {
 
 func NewFacade(
 	name string, alg Algorithm, firstState *State, unmarsh Unmarshaler[State],
-) *AlgorithmFacede {
-	return &AlgorithmFacede{
+) *AlgorithmFacade {
+	return &AlgorithmFacade{
 		Algorithm:  alg,
 		name:       name,
 		unmarsh:    unmarsh,

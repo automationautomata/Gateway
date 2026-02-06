@@ -12,7 +12,7 @@ type Params struct {
 	Count       int
 }
 
-func (p *Params) Marshal() ([]byte, error) { return json.Marshal(p) }
+func (p Params) Marshal() ([]byte, error) { return json.Marshal(p) }
 
 type fixedWindow struct {
 	limit     int
@@ -29,15 +29,14 @@ func newFixedWindow(limit int, windowDur time.Duration) *fixedWindow {
 func (fw *fixedWindow) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
 	p, ok := state.Params.(*Params)
 	if !ok {
-		return false, nil, limiter.ErrIvalidState
+		return false, nil, limiter.ErrInvalidState
 	}
+
 	count, windowStart := p.Count, p.WindowStart
-
 	now := time.Now()
-	diff := now.Sub(windowStart)
 
-	if diff > fw.windowDur {
-		windowStart = windowStart.Add(diff - diff%fw.windowDur)
+	if now.Sub(windowStart) >= fw.windowDur {
+		windowStart = now.Truncate(fw.windowDur)
 		count = 0
 	}
 
@@ -46,5 +45,11 @@ func (fw *fixedWindow) Action(ctx context.Context, state *limiter.State) (bool, 
 		count++
 		allow = true
 	}
-	return allow, &limiter.State{Params: &Params{windowStart, count}}, nil
+
+	return allow, &limiter.State{
+		Params: &Params{
+			WindowStart: windowStart,
+			Count:       count,
+		},
+	}, nil
 }

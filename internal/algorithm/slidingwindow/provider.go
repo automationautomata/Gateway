@@ -16,6 +16,10 @@ func ProvideLogWindow(cfg *config.SlidingWindowLogSettings) (limiter.Algorithm, 
 func ProvideCounterWindow(cfg *config.SlidingWindowCounterSettings) (limiter.Algorithm, *limiter.State) {
 	alg := newSlidingWindowCounter(cfg.WindowDuration, cfg.BucketsNum, cfg.Limit)
 
-	p := &CounterParams{make([]int64, 0), make([]time.Time, 0), 0}
+	p := &CounterParams{
+		buckets:      make([]int64, cfg.BucketsNum),
+		bucketTimes:  make([]time.Time, cfg.BucketsNum),
+		currentIndex: 0,
+	}
 	return alg, &limiter.State{Params: p}
 }

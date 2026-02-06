@@ -1,19 +1,13 @@
-server:
-  host: "0.0.0.0"
-  port: 8080
-  read_timeout: 10s
-  write_timeout: 10s
-
 proxy:
   rules:
     hosts:
-      - host: "example.com"
+      - host: "local.example"
         pathes:
           "/api": "http://localhost:9000"
           "/auth": "http://localhost:9001"
         default: "http://localhost:9002"
 
-      - host: "another.com"
+      - host: "local.another"
         pathes:
           "/": "http://localhost:9100"
         default: "http://localhost:9101"
@@ -21,25 +15,18 @@ proxy:
     default: "http://localhost:9200"
 
   limiter:
-    limiter_type: "token_bucket"
+    type: "token_bucket"
     algorithm:
       capacity: 100
       rate: 10.5
 
-    storage:
-      url: "redis://localhost:6379/0"
-      ttl: 1m
-
 
 edge_limiter:
   limiter:
-    limiter_type: "fixed_window"
+    type: "fixed_window"
     algorithm:
       limit: 500
       window_duration: 1m
-
-    storage:
-      url: "redis://localhost:6379/1"
 
   is_global_limiter: true
 

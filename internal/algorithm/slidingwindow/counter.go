@@ -13,7 +13,7 @@ type CounterParams struct {
 	currentIndex int
 }
 
-func (p *CounterParams) Marshal() ([]byte, error) { return json.Marshal(p) }
+func (p CounterParams) Marshal() ([]byte, error) { return json.Marshal(p) }
 
 type slidingWindowCounter struct {
 	windowSize time.Duration
@@ -34,13 +34,12 @@ func newSlidingWindowCounter(window time.Duration, bucketsNum int, limit int64) 
 func (sw *slidingWindowCounter) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
 	p, ok := state.Params.(*CounterParams)
 	if !ok {
-		return false, nil, limiter.ErrIvalidState
+		return false, nil, limiter.ErrInvalidState
 	}
 
 	now := time.Now()
 	currentBucketStart := now.Truncate(sw.bucketSize)
 
-	// find or rotate bucket
 	targetIndex := -1
 	for i := 0; i < sw.bucketsNum; i++ {
 		if p.bucketTimes[i].Equal(currentBucketStart) {

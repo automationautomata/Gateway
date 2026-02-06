@@ -25,41 +25,19 @@ var reservedEndpoints = []string{metricEndpoint, healthEndpoint}
 
 type Shutdown func(context.Context)
 
-func Run(cfg config.Config) Shutdown {
-	if err := checkProxyRules(cfg.Proxy.Rules); err != nil {
+func Run(fileConf config.FileConfig, envConf config.EnvConfig) Shutdown {
+	setConfigDeafultValues(&fileConf)
+	srv, err := buildServer(fileConf, envConf)
+	if err != nil {
 		log.Fatal(err)
 	}
-
-	proxy, err := provideProxyHandler(cfg.Proxy)
-	if err != nil {
-		log.Fatalf("cannot bootstrap reverse proxy: %v", err)
-	}
-
-	if cfg.EdgeLimiter.IsGlobalLimiter == nil {
-		v := isGlobalLimiterDeafult
-		cfg.EdgeLimiter.IsGlobalLimiter = &v
-	}
-
-	limiter, err := provideRateLimitMiddleware(cfg.EdgeLimiter)
-	if err != nil {
-		log.Fatalf("cannot bootstrap rate limit middleware: %v", err)
-	}
-
-	whitelistMw := mw.NewWhitelist(cfg.Metrics.Hosts...)
-
-	mux := http.NewServeMux()
-	mux.Handle("/", proxy)
-	mux.Handle(healthEndpoint, handlers.Health())
-	mux.Handle(metricEndpoint, whitelistMw.Wrap(promhttp.Handler()))
-
-	srv := server.NewServer(cfg.Server, mux, limiter)
 
 	go func() {
 		log.Printf("running on %s\n", srv.Addr)
 
 		err := srv.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server failed: %v", err)
+			log.Printf("server failed: %v", err)
 		}
 	}()
 
@@ -67,6 +45,58 @@ func Run(cfg config.Config) Shutdown {
 		if err := srv.Shutdown(ctx); err != nil {
 			log.Printf("shutdown error: %v", err)
 		}
+	}
+}
+
+func buildServer(fileConf config.FileConfig, envConf config.EnvConfig) (*http.Server, error) {
+	edgeLimiterRedis, err := provideRedisClient(envConf.EdgeLimiterRedisURL)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect redis %s: %w", envConf.EdgeLimiterRedisURL, err)
+	}
+
+	proxyLimiterRedis, err := provideRedisClient(envConf.ProxyLimiterRedisURL)
+	if err != nil {
+		return nil, fmt.Errorf("cannot connect redis %s: %w", envConf.ProxyLimiterRedisURL, err)
+	}
+
+	if err := checkProxyRules(fileConf.Proxy.Rules); err != nil {
+		return nil, err
+	}
+
+	proxy, err := provideProxyHandler(fileConf.Proxy, edgeLimiterRedis)
+	if err != nil {
+		return nil, fmt.Errorf("cannot bootstrap reverse proxy: %w", err)
+	}
+
+	limiter, err := provideRateLimitMiddleware(*fileConf.EdgeLimiter, proxyLimiterRedis)
+	if err != nil {
+		return nil, fmt.Errorf("cannot bootstrap rate limit middleware: %w", err)
+	}
+
+	whitelistMw := mw.NewWhitelist(fileConf.Metrics.Hosts...)
+
+	mux := http.NewServeMux()
+	mux.Handle("/", proxy)
+	mux.Handle(healthEndpoint, handlers.Health())
+	mux.Handle(metricEndpoint, whitelistMw.Wrap(promhttp.Handler()))
+
+	return server.NewServer(envConf.ServerConfig, mux, limiter), nil
+}
+
+func setConfigDeafultValues(cfg *config.FileConfig) {
+	if cfg.EdgeLimiter.IsGlobalLimiter == nil {
+		v := isGlobalLimiterDeafult
+		cfg.EdgeLimiter.IsGlobalLimiter = &v
+	}
+
+	v := &config.StorageSettings{KeyTTL: 0}
+
+	if cfg.EdgeLimiter.Limiter.Storage == nil {
+		cfg.EdgeLimiter.Limiter.Storage = v
+	}
+
+	if cfg.Proxy.LimiterConfig != nil && cfg.Proxy.LimiterConfig.Storage == nil {
+		cfg.Proxy.LimiterConfig.Storage = v
 	}
 }
 

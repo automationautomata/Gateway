@@ -1,46 +1,66 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"strconv"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 var (
 	limiterLabels = []string{"allowed", "dest"}
 	proxyLabels   = []string{"dest"}
 )
 
-type limiterMetric struct {
-	counter *prometheus.CounterVec
+type metric struct {
+	valuesChan chan []string
+	counter    *prometheus.CounterVec
 }
 
-func newLimiterMetric(name string) *limiterMetric {
-	return &limiterMetric{
+func newMetric(name string, labels []string) *metric {
+	m := &metric{
 		counter: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: name,
 			},
-			limiterLabels,
+			labels,
 		),
+		valuesChan: make(chan []string),
+	}
+	return m
+}
+
+func (m *metric) StartCount() {
+	go func() {
+		for val := range m.valuesChan {
+			m.counter.WithLabelValues(val...).Inc()
+		}
+	}()
+}
+
+type limiterMetric struct {
+	*metric
+}
+
+func NewLimiterMetric(name string) *limiterMetric {
+	return &limiterMetric{
+		metric: newMetric(name, limiterLabels),
 	}
 }
 
-func (m *limiterMetric) Record(allow bool, dest string) {
-	m.counter.WithLabelValues("allow", dest).Inc()
+func (m *limiterMetric) Inc(allow bool, dest string) {
+	m.metric.valuesChan <- []string{strconv.FormatBool(allow), dest}
 }
 
 type proxyMetric struct {
-	counter *prometheus.CounterVec
+	*metric
 }
 
-func newProxyMetric(name string) *proxyMetric {
+func NewProxyMetric(name string) *proxyMetric {
 	return &proxyMetric{
-		counter: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: name,
-			},
-			proxyLabels,
-		),
+		metric: newMetric(name, proxyLabels),
 	}
 }
 
-func (m *proxyMetric) Record(dest string) {
-	m.counter.WithLabelValues(dest).Inc()
+func (m *proxyMetric) Inc(dest string) {
+	m.metric.valuesChan <- []string{dest}
 }
