@@ -2,11 +2,17 @@ package fixedwindow
 
 import (
 	"context"
+	"encoding/json"
 	"gateway/internal/limiter"
 	"time"
-
-	"github.com/pkg/errors"
 )
+
+type Params struct {
+	WindowStart time.Time
+	Count       int
+}
+
+func (p *Params) Marshal() ([]byte, error) { return json.Marshal(p) }
 
 type fixedWindow struct {
 	limit     int
@@ -20,24 +26,25 @@ func newFixedWindow(limit int, windowDur time.Duration) *fixedWindow {
 	}
 }
 
-func (fw *fixedWindow) Action(ctx context.Context, state *limiter.State) (*limiter.State, error) {
-	p, err := parseParams(state.Params)
-	if err != nil {
-		return nil, errors.Wrap(limiter.ErrIvalidState, err.Error())
+func (fw *fixedWindow) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
+	p, ok := state.Params.(*Params)
+	if !ok {
+		return false, nil, limiter.ErrIvalidState
 	}
+	count, windowStart := p.Count, p.WindowStart
 
 	now := time.Now()
-	diff := now.Sub(p.windowStart)
+	diff := now.Sub(windowStart)
 
 	if diff > fw.windowDur {
-		p.windowStart = p.windowStart.Add(diff - diff%fw.windowDur)
-		p.count = 0
+		windowStart = windowStart.Add(diff - diff%fw.windowDur)
+		count = 0
 	}
 
 	allow := false
-	if p.count < fw.limit {
-		p.count++
+	if count < fw.limit {
+		count++
 		allow = true
 	}
-	return &limiter.State{Allow: allow, Params: p.toMap()}, nil
+	return allow, &limiter.State{Params: &Params{windowStart, count}}, nil
 }

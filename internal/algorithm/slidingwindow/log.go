@@ -2,12 +2,17 @@ package slidingwindow
 
 import (
 	"context"
+	"encoding/json"
 	"gateway/internal/limiter"
 	"sort"
 	"time"
-
-	"github.com/pkg/errors"
 )
+
+type LogParams struct {
+	logs []time.Time
+}
+
+func (p LogParams) Marshal() ([]byte, error) { return json.Marshal(p) }
 
 type slidingWindowLog struct {
 	windowDur time.Duration
@@ -20,10 +25,10 @@ func newSlidingWindowLog(limit int, windowDur time.Duration) *slidingWindowLog {
 	}
 }
 
-func (sw *slidingWindowLog) Action(ctx context.Context, state *limiter.State) (*limiter.State, error) {
-	p, err := parseLogParams(state.Params)
-	if err != nil {
-		return nil, errors.Wrap(limiter.ErrIvalidState, err.Error())
+func (sw *slidingWindowLog) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
+	p, ok := state.Params.(*LogParams)
+	if !ok {
+		return false, nil, limiter.ErrIvalidState
 	}
 
 	now := time.Now()
@@ -42,5 +47,5 @@ func (sw *slidingWindowLog) Action(ctx context.Context, state *limiter.State) (*
 		p.logs = append(p.logs, now)
 		allow = true
 	}
-	return &limiter.State{Allow: allow, Params: p.toMap()}, nil
+	return allow, &limiter.State{Params: p}, nil
 }

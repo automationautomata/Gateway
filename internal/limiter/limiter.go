@@ -6,27 +6,25 @@ import (
 )
 
 type limiter struct {
-	fact *AlgorithmFactory
-	stor Storage
+	facade *AlgorithmFacede
+	stor   Storage
 }
 
 func (l *limiter) Allow(ctx context.Context, key string) (bool, error) {
-	state, err := l.stor.Get(ctx, key, l.fact.name)
-	if err == ErrIvalidState {
-		state = l.fact.firstState
-	} else if err != nil {
-		return false, fmt.Errorf("cannot get state by key: %w", err)
+	input := UpdateInput{key, l.facade.name, l.facade.unmarsh}
+
+	var allow bool
+	fn := func(s *State) (new *State, err error) {
+		if s == nil {
+			s = l.facade.firstState
+		}
+		allow, new, err = l.facade.Action(ctx, s)
+		return new, err
 	}
+	err := l.stor.Update(ctx, input, fn)
 
-	alg := l.fact.alg
-
-	newState, err := alg.Action(ctx, state)
 	if err != nil {
-		return false, fmt.Errorf("cannot do action: %w", err)
+		return false, fmt.Errorf("cannot update state: %w", err)
 	}
-
-	if err = l.stor.Save(ctx, key, l.fact.name, newState); err != nil {
-		return false, fmt.Errorf("cannot save state: %w", err)
-	}
-	return newState.Allow, nil
+	return allow, nil
 }

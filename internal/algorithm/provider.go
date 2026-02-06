@@ -8,10 +8,11 @@ import (
 	"gateway/internal/limiter"
 )
 
-func ProvideAlgorithmFactory(cfg config.AlgorithmSettings) (*limiter.AlgorithmFactory, error) {
+func ProvideAlgorithmFacade(cfg config.AlgorithmSettings) (*limiter.AlgorithmFacede, error) {
 	var (
 		alg        limiter.Algorithm
 		firstState *limiter.State
+		unmarsh    limiter.Unmarshaler[limiter.State]
 	)
 
 	switch cfg.LimiterType {
@@ -22,6 +23,7 @@ func ProvideAlgorithmFactory(cfg config.AlgorithmSettings) (*limiter.AlgorithmFa
 			return nil, err
 		}
 		alg, firstState = tokenbucket.Provide(algConf)
+		unmarsh = &unmarshaler[*tokenbucket.Params]{}
 
 	case config.FixedWindowAlgorithm:
 		algConf := &config.FixedWindowSettings{}
@@ -30,6 +32,7 @@ func ProvideAlgorithmFactory(cfg config.AlgorithmSettings) (*limiter.AlgorithmFa
 			return nil, err
 		}
 		alg, firstState = fixedwindow.Provide(algConf)
+		unmarsh = &unmarshaler[*fixedwindow.Params]{}
 
 	case config.SlidingWindowLogAlgorithm:
 		algConf := &config.SlidingWindowLogSettings{}
@@ -38,6 +41,7 @@ func ProvideAlgorithmFactory(cfg config.AlgorithmSettings) (*limiter.AlgorithmFa
 			return nil, err
 		}
 		alg, firstState = slidingwindow.ProvideLogWindow(algConf)
+		unmarsh = &unmarshaler[*slidingwindow.LogParams]{}
 
 	case config.SlidingWindowCounterAlgorithm:
 		algConf := &config.SlidingWindowCounterSettings{}
@@ -45,8 +49,11 @@ func ProvideAlgorithmFactory(cfg config.AlgorithmSettings) (*limiter.AlgorithmFa
 		if err != nil {
 			return nil, err
 		}
+		alg, firstState = slidingwindow.ProvideCounterWindow(algConf)
+		unmarsh = &unmarshaler[*slidingwindow.CounterParams]{}
 
 	}
 
-	return limiter.NewFactory(string(cfg.LimiterType), alg, firstState), nil
+	facade := limiter.NewFacade(string(cfg.LimiterType), alg, firstState, unmarsh)
+	return facade, nil
 }

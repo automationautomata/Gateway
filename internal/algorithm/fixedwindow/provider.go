@@ -9,8 +9,7 @@ import (
 func Provide(cfg *config.FixedWindowSettings) (limiter.Algorithm, *limiter.State) {
 	alg := newFixedWindow(cfg.Limit, cfg.WindowDuration)
 	firstState := &limiter.State{
-		Allow:  true,
-		Params: (params{time.Now(), 0}).toMap(),
+		Params: &Params{time.Now(), 0},
 	}
 	return alg, firstState
 }

@@ -2,6 +2,6 @@ package limiter
 
 import "gateway/server/interfaces"
 
-func ProvideLimiter(fact *AlgorithmFactory, stor Storage) interfaces.Limiter {
-	return &limiter{fact: fact, stor: stor}
+func ProvideLimiter(facade *AlgorithmFacede, stor Storage) interfaces.Limiter {
+	return &limiter{facade: facade, stor: stor}
 }

@@ -2,16 +2,30 @@ package limiter
 
 import "context"
 
+type Marshaler interface {
+	Marshal() ([]byte, error)
+}
+
+type Unmarshaler[T any] interface {
+	Unmarshal(data []byte) (*T, error)
+}
+
 type State struct {
-	Allow  bool
-	Params map[string]any
+	Params Marshaler
 }
 
 type Algorithm interface {
-	Action(ctx context.Context, state *State) (*State, error)
+	Action(ctx context.Context, state *State) (bool, *State, error)
+}
+
+type UpdateInput struct {
+	Key       string
+	Algorithm string
+	Unmarsh   Unmarshaler[State]
 }
 
 type Storage interface {
-	Save(ctx context.Context, key, algorithmName string, state *State) error
-	Get(ctx context.Context, key, algorithmName string) (*State, error)
+	Update(ctx context.Context, input UpdateInput, update UpdateFunc) error
 }
+
+type UpdateFunc func(*State) (new *State, err error)
