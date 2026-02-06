@@ -2,11 +2,18 @@ package slidingwindow
 
 import (
 	"context"
+	"encoding/json"
 	"gateway/internal/limiter"
 	"time"
-
-	"github.com/pkg/errors"
 )
+
+type CounterParams struct {
+	buckets      []int64
+	bucketTimes  []time.Time
+	currentIndex int
+}
+
+func (p *CounterParams) Marshal() ([]byte, error) { return json.Marshal(p) }
 
 type slidingWindowCounter struct {
 	windowSize time.Duration
@@ -24,10 +31,10 @@ func newSlidingWindowCounter(window time.Duration, bucketsNum int, limit int64) 
 	}
 }
 
-func (sw *slidingWindowCounter) Action(ctx context.Context, state *limiter.State) (*limiter.State, error) {
-	p, err := parseCounterParams(state.Params)
-	if err != nil {
-		return nil, errors.Wrap(limiter.ErrIvalidState, err.Error())
+func (sw *slidingWindowCounter) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
+	p, ok := state.Params.(*CounterParams)
+	if !ok {
+		return false, nil, limiter.ErrIvalidState
 	}
 
 	now := time.Now()
@@ -71,16 +78,9 @@ func (sw *slidingWindowCounter) Action(ctx context.Context, state *limiter.State
 	}
 
 	if total >= sw.limit {
-		return &limiter.State{
-			Allow:  false,
-			Params: p.toMap(),
-		}, nil
+		return false, &limiter.State{Params: p}, nil
 	}
 
 	p.buckets[targetIndex]++
-
-	return &limiter.State{
-		Allow:  true,
-		Params: p.toMap(),
-	}, nil
+	return true, &limiter.State{Params: p}, nil
 }

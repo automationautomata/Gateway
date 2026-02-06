@@ -2,11 +2,17 @@ package tokenbucket
 
 import (
 	"context"
+	"encoding/json"
 	"gateway/internal/limiter"
 	"time"
-
-	"github.com/pkg/errors"
 )
+
+type Params struct {
+	Tokens     float64
+	LastUpdate time.Time
+}
+
+func (s *Params) Marshal() ([]byte, error) { return json.Marshal(s) }
 
 type tokenBucket struct {
 	capacity int
@@ -20,26 +26,26 @@ func newTokenBucket(capacity int, rate float64) *tokenBucket {
 	}
 }
 
-func (tb *tokenBucket) Action(ctx context.Context, state *limiter.State) (*limiter.State, error) {
-	p, err := parseParams(state.Params)
-	if err != nil {
-		return nil, errors.Wrap(limiter.ErrIvalidState, err.Error())
+func (tb *tokenBucket) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
+	p, ok := state.Params.(*Params)
+	if !ok {
+		return false, nil, limiter.ErrIvalidState
 	}
 
 	now := time.Now()
-	elapsed := now.Sub(p.lastUpdate).Seconds()
+	elapsed := now.Sub(p.LastUpdate).Seconds()
 
-	p.tokens += elapsed * tb.rate
-	if p.tokens > float64(tb.capacity) {
-		p.tokens = float64(tb.capacity)
+	p.Tokens += elapsed * tb.rate
+	if p.Tokens > float64(tb.capacity) {
+		p.Tokens = float64(tb.capacity)
 	}
-	p.lastUpdate = now
+	p.LastUpdate = now
 
 	allow := false
-	if p.tokens >= 1 {
-		p.tokens -= 1
+	if p.Tokens >= 1 {
+		p.Tokens -= 1
 		allow = true
 	}
 
-	return &limiter.State{Allow: allow, Params: p.toMap()}, nil
+	return allow, &limiter.State{Params: p}, nil
 }

@@ -7,6 +7,7 @@ import (
 	"gateway/internal/metrics"
 	"gateway/internal/storage"
 	"gateway/server/handlers"
+	"gateway/server/interfaces"
 	mw "gateway/server/middlewares"
 )
 
@@ -22,37 +23,38 @@ func provideProxyHandler(cfg config.ReverseProxyConfig) (*handlers.HttpReversePr
 		return handlers.NewHttpReverseProxy(cfg.Rules, proxyMetric)
 	}
 
-	fact, err := algorithm.ProvideAlgorithmFactory(cfg.LimiterConfig.AlgorithmSettings)
+	lim, err := provideLimiter(*cfg.LimiterConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	stor, err := storage.ProvideStorage(cfg.LimiterConfig.Storage)
-	if err != nil {
-		return nil, err
-	}
-
-	lim := limiter.ProvideLimiter(fact, stor)
 	limMetric := metrics.ProvideLimiterMetric(limiterMetricName)
 	return handlers.NewHttpReverseProxy(cfg.Rules, proxyMetric, handlers.WithLimiter(lim, limMetric))
 }
 
 func provideRateLimitMiddleware(cfg config.EdgeLimiterConfig) (*mw.RateLimiter, error) {
-	fact, err := algorithm.ProvideAlgorithmFactory(cfg.Limiter.AlgorithmSettings)
+	lim, err := provideLimiter(cfg.Limiter)
 	if err != nil {
 		return nil, err
 	}
-
-	stor, err := storage.ProvideStorage(cfg.Limiter.Storage)
-	if err != nil {
-		return nil, err
-	}
-
-	lim := limiter.ProvideLimiter(fact, stor)
 
 	keyType := mw.Global
 	if !(*cfg.IsGlobalLimiter) {
 		keyType = mw.IP
 	}
 	return mw.NewRateLimiter(lim, keyType), nil
+}
+
+func provideLimiter(cfg config.LimiterSettings) (interfaces.Limiter, error) {
+	fact, err := algorithm.ProvideAlgorithmFacade(cfg.AlgorithmSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	stor, err := storage.ProvideStorage(cfg.Storage)
+	if err != nil {
+		return nil, err
+	}
+
+	return limiter.ProvideLimiter(fact, stor), nil
 }
