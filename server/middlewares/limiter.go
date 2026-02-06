@@ -18,27 +18,49 @@ const (
 )
 
 type RateLimiter struct {
-	lim     interfaces.Limiter
+	metric interfaces.LimiterMetric
+	lim    interfaces.Limiter
+
+	// IP by default
 	keyType KeyType
 }
 
-func NewRateLimiter(lim interfaces.Limiter, keyType KeyType) *RateLimiter {
-	return &RateLimiter{lim, keyType}
+type RateLimiterOption func(*RateLimiter)
+
+func WithMetric(metric interfaces.LimiterMetric) RateLimiterOption {
+	return func(rl *RateLimiter) {
+		rl.metric = metric
+	}
 }
 
-func (mw *RateLimiter) Wrap(next http.Handler) http.Handler {
+func WithKeyType(keyType KeyType) RateLimiterOption {
+	return func(rl *RateLimiter) {
+		rl.keyType = keyType
+	}
+}
+
+// by default: keyType is IP, no metrics
+func NewRateLimiter(lim interfaces.Limiter, options ...RateLimiterOption) *RateLimiter {
+	rl := &RateLimiter{metric: nil, lim: lim, keyType: IP}
+	for _, opt := range options {
+		opt(rl)
+	}
+	return rl
+}
+
+func (rl *RateLimiter) Wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			var key string
 
-			switch mw.keyType {
+			switch rl.keyType {
 			case Global:
 				key = globalKey
 			case IP:
 				key = getClientIP(r)
 			}
 
-			allow, err := mw.lim.Allow(r.Context(), key)
+			allow, err := rl.lim.Allow(r.Context(), key)
 			if err != nil {
 				log.Printf(
 					"rate limiter failed from %s to %s: %s",
@@ -46,7 +68,8 @@ func (mw *RateLimiter) Wrap(next http.Handler) http.Handler {
 				)
 			}
 
-			if !allow {
+			rl.metric.Inc(allow, key)
+			if allow { ///
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
 			}

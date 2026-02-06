@@ -29,7 +29,7 @@ func newTokenBucket(capacity int, rate float64) *tokenBucket {
 func (tb *tokenBucket) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
 	p, ok := state.Params.(*Params)
 	if !ok {
-		return false, nil, limiter.ErrIvalidState
+		return false, nil, limiter.ErrInvalidState
 	}
 
 	now := time.Now()

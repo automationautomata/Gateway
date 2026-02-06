@@ -8,14 +8,14 @@ import (
 	"gateway/internal/limiter"
 )
 
-func ProvideAlgorithmFacade(cfg config.AlgorithmSettings) (*limiter.AlgorithmFacede, error) {
+func ProvideAlgorithmFacade(cfg config.AlgorithmSettings) (*limiter.AlgorithmFacade, error) {
 	var (
 		alg        limiter.Algorithm
 		firstState *limiter.State
 		unmarsh    limiter.Unmarshaler[limiter.State]
 	)
 
-	switch cfg.LimiterType {
+	switch cfg.Type {
 	case config.TokenBucketAlgorithm:
 		algConf := &config.TokenBucketSettings{}
 		err := config.DecodeAlgorithmSettings(cfg.Algorithm, algConf)
@@ -54,6 +54,6 @@ func ProvideAlgorithmFacade(cfg config.AlgorithmSettings) (*limiter.AlgorithmFac
 
 	}
 
-	facade := limiter.NewFacade(string(cfg.LimiterType), alg, firstState, unmarsh)
+	facade := limiter.NewFacade(string(cfg.Type), alg, firstState, unmarsh)
 	return facade, nil
 }

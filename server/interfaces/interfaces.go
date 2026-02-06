@@ -10,11 +10,11 @@ type Limiter interface {
 }
 
 type LimiterMetric interface {
-	Record(allowed bool, dest string)
+	Inc(allowed bool, dest string)
 }
 
 type ProxyMetric interface {
-	Record(dest string)
+	Inc(dest string)
 }
 
 type Middleware interface {

@@ -1,7 +1,11 @@
 package config
 
 import (
+	"os"
 	"time"
+
+	"github.com/caarlos0/env/v11"
+	"go.yaml.in/yaml/v2"
 )
 
 type HostRules struct {
@@ -20,25 +24,52 @@ type ReverseProxyConfig struct {
 	LimiterConfig *LimiterSettings  `yaml:"limiter"`
 }
 
-type ServerConfig struct {
-	Host         string        `yaml:"host"`
-	Port         int           `yaml:"port"`
-	ReadTimeout  time.Duration `yaml:"read_timeout"`
-	WriteTimeout time.Duration `yaml:"write_timeout"`
-}
-
 type EdgeLimiterConfig struct {
 	Limiter         LimiterSettings `yaml:"limiter"`
-	IsGlobalLimiter *bool           `yaml:"is_global_limiter, omitempty"`
+	IsGlobalLimiter *bool           `yaml:"is_global_limiter,omitempty"`
 }
 
 type MetricsConfig struct {
 	Hosts []string `yaml:"hosts"`
 }
 
-type Config struct {
-	Server      ServerConfig       `yaml:"server"`
+type FileConfig struct {
 	Proxy       ReverseProxyConfig `yaml:"proxy"`
-	EdgeLimiter EdgeLimiterConfig  `yaml:"edge_limiter"`
+	EdgeLimiter *EdgeLimiterConfig `yaml:"edge_limiter"`
 	Metrics     MetricsConfig      `yaml:"metrics"`
+}
+
+type ServerConfig struct {
+	Host         string        `env:"HOST"`
+	Port         int           `env:"PORT"`
+	ReadTimeout  time.Duration `env:"READ_TIMEOUT"`
+	WriteTimeout time.Duration `env:"WRITE_TIMEOUT"`
+}
+
+type EnvConfig struct {
+	EdgeLimiterRedisURL  string `env:"EDGE_LIMITER_REDIS_URL"`
+	ProxyLimiterRedisURL string `env:"PROXY_LIMITER_REDIS_URL"`
+	ServerConfig
+}
+
+func LoadFileConfig(path string) (FileConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return FileConfig{}, err
+	}
+
+	var cfg FileConfig
+	err = yaml.Unmarshal(data, &cfg)
+	if err != nil {
+		return FileConfig{}, err
+	}
+	return cfg, nil
+}
+
+func LoadEnvConfig(path string) (EnvConfig, error) {
+	var cfg EnvConfig
+	if err := env.Parse(&cfg); err != nil {
+		return EnvConfig{}, err
+	}
+	return cfg, nil
 }

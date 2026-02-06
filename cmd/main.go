@@ -10,26 +10,23 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-
-	"gopkg.in/yaml.v3"
 )
 
 func main() {
-	configPath := flag.String("--config", "../config.yaml", "path to config file")
+	configPath := flag.String("config", "../config.yaml", "path to config file")
 	flag.Parse()
 
-	data, err := os.ReadFile(*configPath)
+	fileConf, err := config.LoadFileConfig(*configPath)
 	if err != nil {
-		log.Fatalf("error: %v", err)
+		log.Fatal(err)
 	}
 
-	var cfg config.Config
-	err = yaml.Unmarshal(data, &cfg)
+	envConf, err := config.LoadEnvConfig(*configPath)
 	if err != nil {
-		log.Fatalf("error: %v", err)
+		log.Fatal(err)
 	}
 
-	shutdown := bootstrap.Run(cfg)
+	shutdown := bootstrap.Run(fileConf, envConf)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)

@@ -39,18 +39,17 @@ type SlidingWindowCounterSettings struct {
 type RawAlgorithmSettings yaml.Node
 
 type AlgorithmSettings struct {
-	LimiterType AlgorithmType        `yaml:"limiter_type"`
-	Algorithm   RawAlgorithmSettings `yaml:"algorithm"`
+	Type      AlgorithmType        `yaml:"type"`
+	Algorithm RawAlgorithmSettings `yaml:"algorithm"`
 }
 
 type StorageSettings struct {
-	URL string         `yaml:"url"`
-	TTL *time.Duration `yaml:"ttl,omitempty"`
+	KeyTTL time.Duration `yaml:"ttl,omitempty"`
 }
 
 type LimiterSettings struct {
-	Storage StorageSettings `yaml:"storage"`
-	AlgorithmSettings
+	Storage           *StorageSettings  `yaml:"storage"`
+	AlgorithmSettings AlgorithmSettings `yaml:",inline"`
 }
 
 type AlgorithmSettingsTypes interface {

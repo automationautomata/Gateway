@@ -6,7 +6,7 @@ import (
 )
 
 type limiter struct {
-	facade *AlgorithmFacede
+	facade *AlgorithmFacade
 	stor   Storage
 }
 

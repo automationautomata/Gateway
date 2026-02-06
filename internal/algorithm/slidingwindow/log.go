@@ -28,7 +28,7 @@ func newSlidingWindowLog(limit int, windowDur time.Duration) *slidingWindowLog {
 func (sw *slidingWindowLog) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
 	p, ok := state.Params.(*LogParams)
 	if !ok {
-		return false, nil, limiter.ErrIvalidState
+		return false, nil, limiter.ErrInvalidState
 	}
 
 	now := time.Now()

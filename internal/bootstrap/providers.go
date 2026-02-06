@@ -6,34 +6,57 @@ import (
 	"gateway/internal/limiter"
 	"gateway/internal/metrics"
 	"gateway/internal/storage"
-	"gateway/server/handlers"
 	"gateway/server/interfaces"
 	mw "gateway/server/middlewares"
+	"gateway/server/proxy"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const (
-	proxyMetricName   = "proxy"
-	limiterMetricName = "limiter"
+	proxyMetricName        = "proxy"
+	proxyLimiterMetricName = "limiter"
+	edgeLimiterMetricName  = "rate_limit_iddlewar"
 )
 
-func provideProxyHandler(cfg config.ReverseProxyConfig) (*handlers.HttpReverseProxy, error) {
-	proxyMetric := metrics.ProvideProxyMetric(proxyMetricName)
-
-	if cfg.LimiterConfig == nil {
-		return handlers.NewHttpReverseProxy(cfg.Rules, proxyMetric)
-	}
-
-	lim, err := provideLimiter(*cfg.LimiterConfig)
+func provideRedisClient(url string) (*redis.Client, error) {
+	opt, err := redis.ParseURL(url)
 	if err != nil {
 		return nil, err
 	}
 
-	limMetric := metrics.ProvideLimiterMetric(limiterMetricName)
-	return handlers.NewHttpReverseProxy(cfg.Rules, proxyMetric, handlers.WithLimiter(lim, limMetric))
+	return redis.NewClient(opt), nil
 }
 
-func provideRateLimitMiddleware(cfg config.EdgeLimiterConfig) (*mw.RateLimiter, error) {
-	lim, err := provideLimiter(cfg.Limiter)
+func provideLimiter(cfg config.LimiterSettings, rdb *redis.Client) (interfaces.Limiter, error) {
+	fact, err := algorithm.ProvideAlgorithmFacade(cfg.AlgorithmSettings)
+	if err != nil {
+		return nil, err
+	}
+
+	stor := storage.ProvideStorage(rdb, cfg.Storage.KeyTTL)
+	return limiter.ProvideLimiter(fact, stor), nil
+}
+
+func provideProxyHandler(cfg config.ReverseProxyConfig, rdb *redis.Client) (*proxy.HttpReverseProxy, error) {
+	proxyMetric := metrics.NewProxyMetric(proxyMetricName)
+	proxyMetric.StartCount()
+	if cfg.LimiterConfig == nil {
+		return proxy.NewHttpReverseProxy(cfg.Rules, proxyMetric)
+	}
+
+	lim, err := provideLimiter(*cfg.LimiterConfig, rdb)
+	if err != nil {
+		return nil, err
+	}
+
+	limMetric := metrics.NewLimiterMetric(proxyLimiterMetricName)
+	limMetric.StartCount()
+	return proxy.NewHttpReverseProxy(cfg.Rules, proxyMetric, proxy.WithLimiter(lim, limMetric))
+}
+
+func provideRateLimitMiddleware(cfg config.EdgeLimiterConfig, rdb *redis.Client) (*mw.RateLimiter, error) {
+	lim, err := provideLimiter(cfg.Limiter, rdb)
 	if err != nil {
 		return nil, err
 	}
@@ -42,19 +65,8 @@ func provideRateLimitMiddleware(cfg config.EdgeLimiterConfig) (*mw.RateLimiter, 
 	if !(*cfg.IsGlobalLimiter) {
 		keyType = mw.IP
 	}
-	return mw.NewRateLimiter(lim, keyType), nil
-}
 
-func provideLimiter(cfg config.LimiterSettings) (interfaces.Limiter, error) {
-	fact, err := algorithm.ProvideAlgorithmFacade(cfg.AlgorithmSettings)
-	if err != nil {
-		return nil, err
-	}
-
-	stor, err := storage.ProvideStorage(cfg.Storage)
-	if err != nil {
-		return nil, err
-	}
-
-	return limiter.ProvideLimiter(fact, stor), nil
+	limMetric := metrics.NewLimiterMetric(edgeLimiterMetricName)
+	limMetric.StartCount()
+	return mw.NewRateLimiter(lim, mw.WithKeyType(keyType), mw.WithMetric(limMetric)), nil
 }
