@@ -64,7 +64,7 @@ func (hp *HttpReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		hp.lim.metric.Inc(allow, p.backend)
-		if allow { ///
+		if !allow { ///
 			return
 		}
 	}

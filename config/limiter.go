@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -36,33 +37,67 @@ type SlidingWindowCounterSettings struct {
 	BucketsNum     int           `yaml:"buckets_number"`
 }
 
-type RawAlgorithmSettings yaml.Node
-
-type AlgorithmSettings struct {
-	Type      AlgorithmType        `yaml:"type"`
-	Algorithm RawAlgorithmSettings `yaml:"algorithm"`
-}
-
 type StorageSettings struct {
 	KeyTTL time.Duration `yaml:"ttl,omitempty"`
 }
 
 type LimiterSettings struct {
-	Storage           *StorageSettings  `yaml:"storage"`
-	AlgorithmSettings AlgorithmSettings `yaml:",inline"`
+	Storage   *StorageSettings `yaml:"storage,omitempty"`
+	Type      AlgorithmType    `yaml:"type"`
+	Algorithm any              `yaml:"algorithm"`
 }
 
-type AlgorithmSettingsTypes interface {
-	TokenBucketSettings |
-		FixedWindowSettings |
-		SlidingWindowLogSettings |
-		SlidingWindowCounterSettings
-}
+func (l *LimiterSettings) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("limiter must be a mapping")
+	}
 
-func DecodeAlgorithmSettings[T AlgorithmSettingsTypes](c RawAlgorithmSettings, target *T) error {
-	node := yaml.Node(c)
-	if err := node.Decode(target); err != nil {
+	var n yaml.Node
+	if err := node.Decode(&n); err != nil {
 		return err
 	}
+	var raw struct {
+		Storage   *StorageSettings `yaml:"storage,omitempty"`
+		Type      AlgorithmType    `yaml:"type"`
+		Algorithm yaml.Node        `yaml:"algorithm"`
+	}
+	if err := n.Decode(&raw); err != nil {
+		return err
+	}
+	l.Type, l.Storage = raw.Type, raw.Storage
+
+	switch l.Type {
+	case FixedWindowAlgorithm:
+		var cfg FixedWindowSettings
+		if err := raw.Algorithm.Decode(&cfg); err != nil {
+			return fmt.Errorf("failed to decode fixed_window algorithm: %w", err)
+		}
+		l.Algorithm = &cfg
+
+	case SlidingWindowLogAlgorithm:
+		var cfg SlidingWindowLogSettings
+		if err := raw.Algorithm.Decode(&cfg); err != nil {
+			return fmt.Errorf("failed to decode sliding_window_log algorithm: %w", err)
+		}
+		l.Algorithm = &cfg
+
+	case SlidingWindowCounterAlgorithm:
+		var cfg SlidingWindowCounterSettings
+		if err := raw.Algorithm.Decode(&cfg); err != nil {
+			return fmt.Errorf("failed to decode sliding_window_counter algorithm: %w", err)
+		}
+		l.Algorithm = &cfg
+
+	case TokenBucketAlgorithm:
+		var cfg TokenBucketSettings
+		if err := raw.Algorithm.Decode(&cfg); err != nil {
+			return fmt.Errorf("failed to decode token_bucket algorithm: %w", err)
+		}
+		l.Algorithm = &cfg
+
+	default:
+		return fmt.Errorf("unknown algorithm type: %s", l.Type)
+	}
+
 	return nil
 }

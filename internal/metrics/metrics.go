@@ -17,16 +17,17 @@ type metric struct {
 }
 
 func newMetric(name string, labels []string) *metric {
-	m := &metric{
-		counter: prometheus.NewCounterVec(
-			prometheus.CounterOpts{
-				Name: name,
-			},
-			labels,
-		),
+	counter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: name,
+		},
+		labels,
+	)
+	prometheus.Register(counter)
+	return &metric{
+		counter:    counter,
 		valuesChan: make(chan []string),
 	}
-	return m
 }
 
 func (m *metric) StartCount() {

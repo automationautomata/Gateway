@@ -1,7 +1,6 @@
 package fixedwindow
 
 import (
-	"context"
 	"encoding/json"
 	"gateway/internal/limiter"
 	"time"
@@ -19,14 +18,18 @@ type fixedWindow struct {
 	windowDur time.Duration
 }
 
-func newFixedWindow(limit int, windowDur time.Duration) *fixedWindow {
+func NewFixedWindow(limit int, windowDur time.Duration) *fixedWindow {
 	return &fixedWindow{
 		limit:     limit,
 		windowDur: windowDur,
 	}
 }
 
-func (fw *fixedWindow) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
+func (fw *fixedWindow) FirstState() *limiter.State {
+	return &limiter.State{Params: Params{time.Now(), 0}}
+}
+
+func (fw *fixedWindow) Action(state *limiter.State) (bool, *limiter.State, error) {
 	p, ok := state.Params.(*Params)
 	if !ok {
 		return false, nil, limiter.ErrInvalidState

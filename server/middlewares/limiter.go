@@ -69,7 +69,7 @@ func (rl *RateLimiter) Wrap(next http.Handler) http.Handler {
 			}
 
 			rl.metric.Inc(allow, key)
-			if allow { ///
+			if !allow {
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
 			}
