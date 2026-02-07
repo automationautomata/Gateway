@@ -1,0 +1,34 @@
+proxy:
+  rules:
+    hosts:
+      - host: "example.com"
+        pathes:
+          "/api": "host.ex"
+          "/app": "host.test.ex"
+        default: "host.ex"
+
+      - host: "another.com"
+        pathes:
+          "/": "host.test.ex"
+
+    default: "host.ex"
+
+  limiter:
+    limiter_type: "token_bucket"
+    algorithm:
+      capacity: 100
+      rate: 10.5
+
+
+edge_limiter:
+  limiter:
+    limiter_type: "fixed_window"
+    algorithm:
+      limit: 500
+      window_duration: 1m
+
+  is_global_limiter: true
+
+metrics:
+  hosts:
+    - "localhost"

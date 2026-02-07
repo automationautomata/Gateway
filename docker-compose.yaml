@@ -1,0 +1,53 @@
+services:
+  redis:
+    image: redis:7
+    command: ["redis-server", "--databases", "2"]
+    volumes:
+      - redis-data:/data
+    networks:
+        redis-net:
+          aliases:
+          - redis.gateway
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+
+  gateway:
+    build: .
+    container_name: gateway
+    ports:
+      - "8080:8080" 
+    volumes:
+      - ./config.yaml:${CONFIG_PATH}:ro
+    command: gateway --config=./config.yaml
+    environment:
+      HOST: "0.0.0.0"
+      PORT: 8080
+      READ_TIMEOUT: 10s
+      WRITE_TIMEOUT: 10s
+      EDGE_LIMITER_REDIS_URL: "redis://redis.gateway:6379/0"
+      PROXY_LIMITER_REDIS_URL: "redis://redis.gateway:6379/1"
+    depends_on:
+      - redis
+    networks:
+      - global-net
+      - redis-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+
+
+volumes:
+  redis-data:
+
+networks:
+  redis-net:
+    driver: bridge
+
+  global-net:
