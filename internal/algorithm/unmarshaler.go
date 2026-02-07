@@ -5,11 +5,15 @@ import (
 	"gateway/internal/limiter"
 )
 
-type unmarshaler[T limiter.Marshaler] struct{}
+type stateUnmarshaler[T limiter.Marshaler] struct{}
 
-func (*unmarshaler[T]) Unmarshal(b []byte) (*limiter.State, error) {
+func NewStateUnmarshaler[T limiter.Marshaler]() *stateUnmarshaler[T] {
+	return &stateUnmarshaler[T]{}
+}
+
+func (*stateUnmarshaler[T]) Unmarshal(data []byte) (*limiter.State, error) {
 	var p T
-	if err := json.Unmarshal(b, &p); err != nil {
+	if err := json.Unmarshal(data, &p); err != nil {
 		return nil, err
 	}
 	return &limiter.State{Params: p}, nil

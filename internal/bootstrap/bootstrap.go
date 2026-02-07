@@ -6,6 +6,7 @@ import (
 	"gateway/config"
 	"gateway/internal/common"
 	"gateway/server"
+	"time"
 
 	"gateway/server/handlers"
 	mw "gateway/server/middlewares"
@@ -16,9 +17,10 @@ import (
 )
 
 const (
-	isGlobalLimiterDeafult = false
-	metricEndpoint         = "/metrics"
-	healthEndpoint         = "/health"
+	isGlobalLimiterDeafult               = false
+	metricEndpoint                       = "/metrics"
+	healthEndpoint                       = "/health"
+	DefaultKeyTTL          time.Duration = time.Hour
 )
 
 var reservedEndpoints = []string{metricEndpoint, healthEndpoint}

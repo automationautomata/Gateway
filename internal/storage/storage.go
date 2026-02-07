@@ -14,7 +14,7 @@ type redisStorage struct {
 	keyTTL time.Duration
 }
 
-func newRedisStorage(rdb *redis.Client, keyTTL time.Duration) *redisStorage {
+func NewRedisStorage(rdb *redis.Client, keyTTL time.Duration) *redisStorage {
 	return &redisStorage{
 		rdb:    rdb,
 		keyTTL: keyTTL,

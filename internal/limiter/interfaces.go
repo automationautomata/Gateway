@@ -15,7 +15,8 @@ type State struct {
 }
 
 type Algorithm interface {
-	Action(ctx context.Context, state *State) (bool, *State, error)
+	FirstState() *State
+	Action(state *State) (bool, *State, error)
 }
 
 type UpdateInput struct {

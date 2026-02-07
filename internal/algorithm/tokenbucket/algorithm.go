@@ -1,7 +1,6 @@
 package tokenbucket
 
 import (
-	"context"
 	"encoding/json"
 	"gateway/internal/limiter"
 	"time"
@@ -19,14 +18,18 @@ type tokenBucket struct {
 	rate     float64
 }
 
-func newTokenBucket(capacity int, rate float64) *tokenBucket {
+func NewTokenBucket(capacity int, rate float64) *tokenBucket {
 	return &tokenBucket{
 		capacity: capacity,
 		rate:     rate,
 	}
 }
 
-func (tb *tokenBucket) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
+func (tb *tokenBucket) FirstState() *limiter.State {
+	return &limiter.State{Params: &Params{0, time.Now()}}
+}
+
+func (tb *tokenBucket) Action(state *limiter.State) (bool, *limiter.State, error) {
 	p, ok := state.Params.(*Params)
 	if !ok {
 		return false, nil, limiter.ErrInvalidState

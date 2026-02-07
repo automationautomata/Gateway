@@ -1,7 +1,6 @@
 package slidingwindow
 
 import (
-	"context"
 	"encoding/json"
 	"gateway/internal/limiter"
 	"time"
@@ -22,7 +21,7 @@ type slidingWindowCounter struct {
 	limit      int64
 }
 
-func newSlidingWindowCounter(window time.Duration, bucketsNum int, limit int64) *slidingWindowCounter {
+func NewSlidingWindowCounter(window time.Duration, bucketsNum int, limit int64) *slidingWindowCounter {
 	return &slidingWindowCounter{
 		windowSize: window,
 		bucketSize: window / time.Duration(bucketsNum),
@@ -31,7 +30,17 @@ func newSlidingWindowCounter(window time.Duration, bucketsNum int, limit int64) 
 	}
 }
 
-func (sw *slidingWindowCounter) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
+func (sw *slidingWindowCounter) FirstState() *limiter.State {
+	return &limiter.State{
+		Params: &CounterParams{
+			buckets:      make([]int64, sw.bucketsNum),
+			bucketTimes:  make([]time.Time, sw.bucketsNum),
+			currentIndex: 0,
+		},
+	}
+}
+
+func (sw *slidingWindowCounter) Action(state *limiter.State) (bool, *limiter.State, error) {
 	p, ok := state.Params.(*CounterParams)
 	if !ok {
 		return false, nil, limiter.ErrInvalidState

@@ -16,9 +16,9 @@ func (l *limiter) Allow(ctx context.Context, key string) (bool, error) {
 	var allow bool
 	fn := func(s *State) (new *State, err error) {
 		if s == nil {
-			s = l.facade.firstState
+			s = l.facade.FirstState()
 		}
-		allow, new, err = l.facade.Action(ctx, s)
+		allow, new, err = l.facade.Action(s)
 		return new, err
 	}
 	err := l.stor.Update(ctx, input, fn)

@@ -1,7 +1,6 @@
 package slidingwindow
 
 import (
-	"context"
 	"encoding/json"
 	"gateway/internal/limiter"
 	"sort"
@@ -25,7 +24,13 @@ func newSlidingWindowLog(limit int, windowDur time.Duration) *slidingWindowLog {
 	}
 }
 
-func (sw *slidingWindowLog) Action(ctx context.Context, state *limiter.State) (bool, *limiter.State, error) {
+func (fw *slidingWindowLog) FirstState() *limiter.State {
+	return &limiter.State{
+		Params: &LogParams{[]time.Time{}},
+	}
+}
+
+func (sw *slidingWindowLog) Action(state *limiter.State) (bool, *limiter.State, error) {
 	p, ok := state.Params.(*LogParams)
 	if !ok {
 		return false, nil, limiter.ErrInvalidState
