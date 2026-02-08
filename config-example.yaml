@@ -1,13 +1,13 @@
 proxy:
   rules:
     hosts:
-      - host: "local.example"
+      - host: "example.com"
         pathes:
           "/api": "http://localhost:9000"
           "/auth": "http://localhost:9001"
         default: "http://localhost:9002"
 
-      - host: "local.another"
+      - host: "another.com"
         pathes:
           "/": "http://localhost:9100"
         default: "http://localhost:9101"
