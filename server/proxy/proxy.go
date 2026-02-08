@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
@@ -20,8 +19,8 @@ type HttpReverseProxy struct {
 	defaultProxy *proxy
 	lim          *proxyLimiter
 	metric       interfaces.ProxyMetric
+	log          interfaces.Logger
 }
-
 type ProxyOption func(*HttpReverseProxy)
 
 func WithLimiter(lim interfaces.Limiter, metric interfaces.LimiterMetric) ProxyOption {
@@ -30,24 +29,28 @@ func WithLimiter(lim interfaces.Limiter, metric interfaces.LimiterMetric) ProxyO
 	}
 }
 
-func NewHttpReverseProxy(
-	rules config.ReverseProxyRules, proxyMetric interfaces.ProxyMetric, options ...ProxyOption,
-) (p *HttpReverseProxy, err error) {
-	p = &HttpReverseProxy{metric: proxyMetric}
+type HttpProxyInput struct {
+	Rules       config.ReverseProxyRules
+	Log         interfaces.Logger
+	ProxyMetric interfaces.ProxyMetric
+}
+
+func NewHttpReverseProxy(input HttpProxyInput, options ...ProxyOption) (p *HttpReverseProxy, err error) {
+	p = &HttpReverseProxy{metric: input.ProxyMetric, log: input.Log}
 	for _, opt := range options {
 		opt(p)
 	}
 
-	p.defaultProxy, err = newProxy(rules.Default, "/")
+	p.defaultProxy, err = newProxy(input.Rules.Default, "/")
 	if err != nil {
 		return nil, fmt.Errorf("cannot create deafult reverse proxy: %w", err)
 	}
 
-	if rules.Hosts == nil {
+	if input.Rules.Hosts == nil {
 		return p, nil
 	}
 
-	p.hostMap, err = newHostRulesMap(rules.Hosts)
+	p.hostMap, err = newHostRulesMap(input.Rules.Hosts)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create reverse proxy: %w", err)
 	}
@@ -55,12 +58,26 @@ func NewHttpReverseProxy(
 }
 
 func (hp *HttpReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	p := hp.getProxy(r.URL.Hostname(), r.URL.Path)
+	host := r.URL.Host
+	if host == "" {
+		host = r.Host
+	}
+
+	p := hp.getProxy(host, r.URL.Path)
+
+	hp.log.Debug(
+		r.Context(), "proxy", map[string]any{
+			"host": host,
+			"path": r.URL.Path,
+			"to":   p.backend,
+		},
+	)
 
 	if hp.lim != nil {
 		allow, err := hp.lim.Allow(r.Context(), p.backend)
 		if err != nil {
-			log.Printf("rate limiter failed to %s: %s", p.backend, err)
+			msg := fmt.Sprintf("rate limiter failed to %s", p.backend)
+			hp.log.Error(r.Context(), msg, map[string]any{"error": err})
 		}
 
 		hp.lim.metric.Inc(allow, p.backend)
@@ -68,14 +85,19 @@ func (hp *HttpReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	hp.metric.Inc(p.backend)
 	p.ServeHTTP(w, r)
 }
 
-func (p *HttpReverseProxy) getProxy(host, path string) *proxy {
-	rule, ok := p.hostMap.get(host)
+func (hp *HttpReverseProxy) getProxy(host, path string) *proxy {
+	if hp.hostMap == nil {
+		return hp.defaultProxy
+	}
+
+	rule, ok := hp.hostMap.get(host)
 	if !ok {
-		return p.defaultProxy
+		return hp.defaultProxy
 	}
 
 	var curPath strings.Builder
@@ -86,10 +108,9 @@ func (p *HttpReverseProxy) getProxy(host, path string) *proxy {
 			return proxy
 		}
 	}
-
 	if rule.defaultProxy != nil {
 		return rule.defaultProxy
 	}
 
-	return p.defaultProxy
+	return hp.defaultProxy
 }

@@ -1,54 +1,45 @@
 package proxy
 
 import (
+	"fmt"
 	"gateway/config"
+	"gateway/server/common"
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
-	"sync"
 )
-
-type rules[K any, V any] struct {
-	m *sync.Map
-}
-
-func newRules[K any, V any]() *rules[K, V] {
-	var m sync.Map
-	return &rules[K, V]{&m}
-}
-
-func (r *rules[K, V]) add(k string, v V) {
-	r.m.Store(k, v)
-}
-
-func (r *rules[K, V]) get(k K) (V, bool) {
-	p, ok := r.m.Load(k)
-	if !ok {
-		return *new(V), false
-	}
-	return p.(V), ok
-}
 
 type proxy struct {
 	backend string
 	*httputil.ReverseProxy
 }
 
-func newProxy(backend string, prefix string) (*proxy, error) {
+func newProxy(backend string, path string) (*proxy, error) {
 	target, err := url.Parse(backend)
 	if err != nil {
 		return nil, err
 	}
+	httputil.NewSingleHostReverseProxy(target)
+	defaultTransport := (http.DefaultTransport.(*http.Transport))
 	return &proxy{
-		backend: prefix,
+		backend: backend,
 		ReverseProxy: &httputil.ReverseProxy{
 			Rewrite: func(r *httputil.ProxyRequest) {
 				r.SetURL(target)
 				out, in := r.Out, r.In
 
 				out.Host = in.Host
-				out.URL.Path = strings.TrimPrefix(in.URL.Path, prefix)
-				// r.Out.Header.Set("X-Forwarded-Host", r.In.Host)
+				out.URL.Path = strings.TrimPrefix(in.URL.Path, path)
+				r.Out.Header.Set("X-Forwarded-Host", r.In.Host)
+			},
+			Transport: &http.Transport{
+				Proxy:                 nil,
+				DialContext:           defaultTransport.DialContext,
+				MaxIdleConns:          defaultTransport.MaxConnsPerHost,
+				IdleConnTimeout:       defaultTransport.IdleConnTimeout,
+				TLSHandshakeTimeout:   defaultTransport.TLSHandshakeTimeout,
+				ExpectContinueTimeout: defaultTransport.ExpectContinueTimeout,
 			},
 		},
 	}, nil
@@ -56,19 +47,18 @@ func newProxy(backend string, prefix string) (*proxy, error) {
 
 type hostRule struct {
 	defaultProxy *proxy
-	pathRules    *rules[string, *proxy]
+	pathRules    *common.SyncMap[string, *proxy]
 }
 
 type hostRulesMap struct {
-	*rules[string, *hostRule]
+	*common.SyncMap[string, *hostRule]
 }
 
-func newHostRulesMap(hosts []config.HostRules) (*hostRulesMap, error) {
-	hostRules := hostRulesMap{newRules[string, *hostRule]()}
+func newHostRulesMap(hosts []config.HostRules) (hostRules *hostRulesMap, err error) {
+	hostRules = &hostRulesMap{common.NewSyncMap[string, *hostRule]()}
 
-	var err error
 	for _, hostCfg := range hosts {
-		r := &hostRule{pathRules: newRules[string, *proxy]()}
+		r := &hostRule{pathRules: common.NewSyncMap[string, *proxy]()}
 
 		if hostCfg.Default != nil {
 			r.defaultProxy, err = newProxy(*hostCfg.Default, "/")
@@ -77,16 +67,24 @@ func newHostRulesMap(hosts []config.HostRules) (*hostRulesMap, error) {
 			}
 		}
 
-		for prefix, backend := range hostCfg.Pathes {
-			proxy, err := newProxy(backend, prefix)
+		for path, backend := range hostCfg.Pathes {
+			path = normalizePath(path)
+			proxy, err := newProxy(backend, path)
 			if err != nil {
 				return nil, err
 			}
-			r.pathRules.add(prefix, proxy)
+			r.pathRules.Add(path, proxy)
 		}
 
-		hostRules.add(hostCfg.Host, r)
+		hostRules.Add(hostCfg.Host, r)
 	}
 
-	return &hostRules, nil
+	return hostRules, nil
+}
+
+func normalizePath(path string) string {
+	if strings.HasSuffix(path, "/") {
+		return path
+	}
+	return fmt.Sprint(path, "/")
 }

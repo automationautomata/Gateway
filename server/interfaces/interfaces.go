@@ -20,3 +20,10 @@ type ProxyMetric interface {
 type Middleware interface {
 	Wrap(next http.Handler) http.Handler
 }
+
+type Logger interface {
+	Debug(ctx context.Context, msg string, fields map[string]any)
+	Info(ctx context.Context, msg string, fields map[string]any)
+	Warn(ctx context.Context, msg string, fields map[string]any)
+	Error(ctx context.Context, msg string, fields map[string]any)
+}

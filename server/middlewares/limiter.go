@@ -1,8 +1,8 @@
 package middlewares
 
 import (
+	"fmt"
 	"gateway/server/interfaces"
-	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -20,6 +20,7 @@ const (
 type RateLimiter struct {
 	metric interfaces.LimiterMetric
 	lim    interfaces.Limiter
+	log    interfaces.Logger
 
 	// IP by default
 	keyType KeyType
@@ -40,8 +41,8 @@ func WithKeyType(keyType KeyType) RateLimiterOption {
 }
 
 // by default: keyType is IP, no metrics
-func NewRateLimiter(lim interfaces.Limiter, options ...RateLimiterOption) *RateLimiter {
-	rl := &RateLimiter{metric: nil, lim: lim, keyType: IP}
+func NewRateLimiter(lim interfaces.Limiter, log interfaces.Logger, options ...RateLimiterOption) *RateLimiter {
+	rl := &RateLimiter{metric: nil, lim: lim, keyType: IP, log: log}
 	for _, opt := range options {
 		opt(rl)
 	}
@@ -62,10 +63,12 @@ func (rl *RateLimiter) Wrap(next http.Handler) http.Handler {
 
 			allow, err := rl.lim.Allow(r.Context(), key)
 			if err != nil {
-				log.Printf(
-					"rate limiter failed from %s to %s: %s",
-					getClientIP(r), r.URL.String(), err,
+				msg := fmt.Sprintf(
+					"rate limiter failed from %s to %s",
+					getClientIP(r), r.URL.String(),
 				)
+				rl.log.Error(r.Context(), msg, map[string]any{"error": err})
+				return
 			}
 
 			rl.metric.Inc(allow, key)

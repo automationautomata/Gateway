@@ -25,7 +25,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	shutdown := bootstrap.Run(fileConf, envConf)
 
 	stop := make(chan os.Signal, 1)

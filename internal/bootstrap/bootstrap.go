@@ -65,15 +65,19 @@ func buildServer(fileConf config.FileConfig, envConf config.EnvConfig) (*http.Se
 		return nil, err
 	}
 
-	proxy, err := provideProxyHandler(fileConf.Proxy, edgeLimiterRedis)
+	logger := provideLogger(envConf.LogLevel)
+
+	proxy, err := provideProxyHandler(fileConf.Proxy, edgeLimiterRedis, logger)
 	if err != nil {
 		return nil, fmt.Errorf("cannot bootstrap reverse proxy: %w", err)
 	}
 
-	limiter, err := provideRateLimitMiddleware(*fileConf.EdgeLimiter, proxyLimiterRedis)
+	limiter, err := provideRateLimitMiddleware(*fileConf.EdgeLimiter, proxyLimiterRedis, logger)
 	if err != nil {
 		return nil, fmt.Errorf("cannot bootstrap rate limit middleware: %w", err)
 	}
+
+	recoverMw := mw.NewRecover(logger)
 
 	whitelistMw := mw.NewWhitelist(fileConf.Metrics.Hosts...)
 
@@ -82,7 +86,7 @@ func buildServer(fileConf config.FileConfig, envConf config.EnvConfig) (*http.Se
 	mux.Handle(healthEndpoint, handlers.Health())
 	mux.Handle(metricEndpoint, whitelistMw.Wrap(promhttp.Handler()))
 
-	return server.NewServer(envConf.ServerConfig, mux, limiter), nil
+	return server.NewServer(envConf.ServerConfig, mux, recoverMw, limiter), nil
 }
 
 func setConfigDeafultValues(cfg *config.FileConfig) {
