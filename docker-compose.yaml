@@ -7,7 +7,7 @@ services:
     networks:
         redis-net:
           aliases:
-          - redis.gateway
+          - redis
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -28,10 +28,11 @@ services:
       PORT: 8080
       READ_TIMEOUT: 10s
       WRITE_TIMEOUT: 10s
-      EDGE_LIMITER_REDIS_URL: "redis://redis.gateway:6379/0"
-      PROXY_LIMITER_REDIS_URL: "redis://redis.gateway:6379/1"
+      EDGE_LIMITER_REDIS_URL: "redis://redis:6379/0"
+      PROXY_LIMITER_REDIS_URL: "redis://redis:6379/1"
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     networks:
       - global-net
       - redis-net

@@ -11,7 +11,7 @@ type Params struct {
 	Count       int
 }
 
-func (p Params) Marshal() ([]byte, error) { return json.Marshal(p) }
+func (p *Params) Marshal() ([]byte, error) { return json.Marshal(p) }
 
 type fixedWindow struct {
 	limit     int
@@ -26,7 +26,7 @@ func NewFixedWindow(limit int, windowDur time.Duration) *fixedWindow {
 }
 
 func (fw *fixedWindow) FirstState() *limiter.State {
-	return &limiter.State{Params: Params{time.Now(), 0}}
+	return &limiter.State{Params: &Params{time.Now(), 0}}
 }
 
 func (fw *fixedWindow) Action(state *limiter.State) (bool, *limiter.State, error) {

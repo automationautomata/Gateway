@@ -8,6 +8,15 @@ import (
 	"go.yaml.in/yaml/v2"
 )
 
+type LogLevel string
+
+const (
+	Debug LogLevel = "DEBUG"
+	Info  LogLevel = "INFO"
+	Warn  LogLevel = "WARN"
+	Error LogLevel = "ERROR"
+)
+
 type HostRules struct {
 	Host    string            `yaml:"host"`
 	Pathes  map[string]string `yaml:"pathes"`
@@ -47,8 +56,9 @@ type ServerConfig struct {
 }
 
 type EnvConfig struct {
-	EdgeLimiterRedisURL  string `env:"EDGE_LIMITER_REDIS_URL"`
-	ProxyLimiterRedisURL string `env:"PROXY_LIMITER_REDIS_URL"`
+	EdgeLimiterRedisURL  string   `env:"EDGE_LIMITER_REDIS_URL"`
+	ProxyLimiterRedisURL string   `env:"PROXY_LIMITER_REDIS_URL"`
+	LogLevel             LogLevel `env:"LOG_LEVEL"`
 	ServerConfig
 }
 
