@@ -12,22 +12,25 @@ proxy:
           "/": "http://localhost:9100"
         default: "http://localhost:9101"
 
-    default: "http://localhost:9200"
+    default: http://localhost:9200
 
   limiter:
-    type: "token_bucket"
+    type: "fixed_window"
     algorithm:
-      capacity: 100
-      rate: 10.5
+      limit: 4
+      window_duration: 1s
+    storage: 
+      ttl: 20s
 
 
 edge_limiter:
   limiter:
     type: "fixed_window"
     algorithm:
-      limit: 500
-      window_duration: 1m
-
+      limit: 4
+      window_duration: 1s
+    storage: 
+      ttl: 20s
   is_global_limiter: true
 
 metrics:

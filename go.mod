@@ -3,7 +3,6 @@ module gateway
 go 1.24.5
 
 require (
-	github.com/Masterminds/log-go v1.0.0
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/redis/go-redis/v9 v9.17.3

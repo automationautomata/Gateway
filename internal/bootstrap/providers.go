@@ -20,9 +20,9 @@ import (
 )
 
 const (
-	proxyMetricName        = "proxy"
-	proxyLimiterMetricName = "limiter"
-	edgeLimiterMetricName  = "rate_limit_iddlewar"
+	proxyMetricName        = "proxy_requests"
+	proxyLimiterMetricName = "internal_limiter"
+	edgeLimiterMetricName  = "edge_limiter"
 )
 
 func provideProxyHandler(cfg config.ReverseProxyConfig, rdb *redis.Client, log interfaces.Logger) (*proxy.HttpReverseProxy, error) {
@@ -35,9 +35,7 @@ func provideProxyHandler(cfg config.ReverseProxyConfig, rdb *redis.Client, log i
 		ProxyMetric: proxyMetric,
 	}
 	if cfg.LimiterConfig == nil {
-		return proxy.NewHttpReverseProxy(
-			input,
-		)
+		return proxy.NewHttpReverseProxy(input)
 	}
 
 	lim, err := provideLimiter(*cfg.LimiterConfig, rdb)
@@ -50,7 +48,7 @@ func provideProxyHandler(cfg config.ReverseProxyConfig, rdb *redis.Client, log i
 	return proxy.NewHttpReverseProxy(input, proxy.WithLimiter(lim, limMetric))
 }
 
-func provideRateLimitMiddleware(cfg config.EdgeLimiterConfig, rdb *redis.Client, log interfaces.Logger) (*mw.RateLimiter, error) {
+func provideEdgeLimiter(cfg config.EdgeLimiterConfig, rdb *redis.Client, log interfaces.Logger) (*mw.RateLimiter, error) {
 	lim, err := provideLimiter(cfg.Limiter, rdb)
 	if err != nil {
 		return nil, err

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
-	"go.yaml.in/yaml/v2"
+	"gopkg.in/yaml.v3"
 )
 
 type LogLevel string
@@ -58,7 +58,7 @@ type ServerConfig struct {
 type EnvConfig struct {
 	EdgeLimiterRedisURL  string   `env:"EDGE_LIMITER_REDIS_URL"`
 	ProxyLimiterRedisURL string   `env:"PROXY_LIMITER_REDIS_URL"`
-	LogLevel             LogLevel `env:"LOG_LEVEL"`
+	LogLevel             LogLevel `env:"LOG_LEVEL" envDefault:"ERROR"`
 	ServerConfig
 }
 
@@ -69,8 +69,7 @@ func LoadFileConfig(path string) (FileConfig, error) {
 	}
 
 	var cfg FileConfig
-	err = yaml.Unmarshal(data, &cfg)
-	if err != nil {
+	if err = yaml.Unmarshal(data, &cfg); err != nil {
 		return FileConfig{}, err
 	}
 	return cfg, nil

@@ -1,0 +1,89 @@
+
+x-test-host-template: &test_host_template
+  image: python:3.12-alpine
+  volumes: 
+    - ./testdata/server.py:/server.py:ro
+    - ./testdata/run-servers.sh:/run-servers.sh:ro
+  environment:
+    SERVER_PATH: /server.py
+  restart: unless-stopped
+
+services:
+  test_single:
+    <<: *test_host_template
+    hostname: test.single
+    command: sh /run-servers.sh 8080
+    networks:
+      backends-net:
+
+  test_multy:
+    <<: *test_host_template
+    hostname: test.multy
+    command: sh /run-servers.sh 9000 9001
+    networks:
+      backends-net:
+    
+  redis:
+    image: redis:7
+    command: ["redis-server", "--databases", "2"]
+    hostname: redis
+    networks:
+        redis-net:
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 2s 
+      retries: 3
+
+  gateway:
+    build: .
+    volumes:
+      - ./testdata/config.yaml:/usr/etc/gateway/config.yaml:ro
+    environment:
+      EDGE_LIMITER_REDIS_URL: "redis://redis:6379/0"
+      PROXY_LIMITER_REDIS_URL: "redis://redis:6379/1"
+      LOG_LEVEL: "DEBUG"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      redis-net:
+      backends-net:
+      test-client-net:
+        aliases: 
+          - multypath.ex
+          - rootpath.ex
+          - somehost.ex
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      interval: 5s
+      timeout: 2s
+      retries: 3
+
+  test-client:
+    image: busybox:latest
+    volumes: 
+      - ./testdata/test-gateway.sh:/test-gateway.sh:ro
+    command: sh /test-gateway.sh
+    depends_on:
+      gateway:
+        condition: service_healthy
+      test_multy:
+        condition: service_started
+      test_single:
+        condition: service_started
+    networks:
+      - test-client-net
+    restart: "no"
+
+networks:
+  backends-net:
+    driver: bridge
+
+  redis-net:
+    driver: bridge
+    
+  test-client-net:
+    driver: bridge
