@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"gateway/config"
+	"gateway/server/common"
 	"gateway/server/interfaces"
 )
 
@@ -58,20 +59,12 @@ func NewHttpReverseProxy(input HttpProxyInput, options ...ProxyOption) (p *HttpR
 }
 
 func (hp *HttpReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	host := r.URL.Host
-	if host == "" {
-		host = r.Host
-	}
-
+	host := common.GetHost(r)
 	p := hp.getProxy(host, r.URL.Path)
 
-	hp.log.Debug(
-		r.Context(), "proxy", map[string]any{
-			"host": host,
-			"path": r.URL.Path,
-			"to":   p.backend,
-		},
-	)
+	hp.log.Debug(r.Context(), "proxy", map[string]any{
+		"host": host, "path": r.URL.Path, "to": p.backend,
+	})
 
 	if hp.lim != nil {
 		allow, err := hp.lim.Allow(r.Context(), p.backend)
@@ -81,7 +74,7 @@ func (hp *HttpReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		hp.lim.metric.Inc(allow, p.backend)
-		if !allow { ///
+		if !allow {
 			return
 		}
 	}
@@ -94,20 +87,22 @@ func (hp *HttpReverseProxy) getProxy(host, path string) *proxy {
 	if hp.hostMap == nil {
 		return hp.defaultProxy
 	}
+	path = normalizePath(path)
 
-	rule, ok := hp.hostMap.get(host)
+	rule, ok := hp.hostMap.Get(host)
 	if !ok {
 		return hp.defaultProxy
 	}
 
 	var curPath strings.Builder
 	for _, part := range strings.Split(path, "/") {
-		curPath.WriteString("/")
 		curPath.WriteString(part)
-		if proxy, ok := rule.pathRules.get(curPath.String()); ok {
+		curPath.WriteString("/")
+		if proxy, ok := rule.pathRules.Get(curPath.String()); ok {
 			return proxy
 		}
 	}
+
 	if rule.defaultProxy != nil {
 		return rule.defaultProxy
 	}

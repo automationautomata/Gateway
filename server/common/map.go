@@ -2,11 +2,11 @@ package common
 
 import "sync"
 
-type SyncMap[K any, V any] struct {
+type SyncMap[K comparable, V any] struct {
 	m *sync.Map
 }
 
-func NewSyncMap[K any, V any]() *SyncMap[K, V] {
+func NewSyncMap[K comparable, V any]() *SyncMap[K, V] {
 	var m sync.Map
 	return &SyncMap[K, V]{&m}
 }

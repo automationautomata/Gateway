@@ -48,7 +48,6 @@ func (fw *fixedWindow) Action(state *limiter.State) (bool, *limiter.State, error
 		count++
 		allow = true
 	}
-
 	return allow, &limiter.State{
 		Params: &Params{
 			WindowStart: windowStart,

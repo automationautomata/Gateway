@@ -2,10 +2,9 @@ package middlewares
 
 import (
 	"fmt"
+	"gateway/server/common"
 	"gateway/server/interfaces"
-	"net"
 	"net/http"
-	"strings"
 )
 
 type KeyType string
@@ -54,22 +53,25 @@ func (rl *RateLimiter) Wrap(next http.Handler) http.Handler {
 		func(w http.ResponseWriter, r *http.Request) {
 			var key string
 
+			ip := common.GetIP(r)
 			switch rl.keyType {
 			case Global:
 				key = globalKey
 			case IP:
-				key = getClientIP(r)
+				key = ip
 			}
 
 			allow, err := rl.lim.Allow(r.Context(), key)
 			if err != nil {
 				msg := fmt.Sprintf(
-					"rate limiter failed from %s to %s",
-					getClientIP(r), r.URL.String(),
+					"rate limiter failed from %s to %s", ip, r.URL.String(),
 				)
 				rl.log.Error(r.Context(), msg, map[string]any{"error": err})
 				return
 			}
+			rl.log.Debug(r.Context(), "rate limiter", map[string]any{
+				"from": ip, "to": common.GetHost(r), "allowed": allow,
+			})
 
 			rl.metric.Inc(allow, key)
 			if !allow {
@@ -79,22 +81,4 @@ func (rl *RateLimiter) Wrap(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		},
 	)
-}
-
-func getClientIP(r *http.Request) string {
-	ip := r.Header.Get("X-Forwarded-For")
-	if ip != "" {
-		return strings.Split(ip, ",")[0]
-	}
-
-	ip = r.Header.Get("X-Real-IP")
-	if ip != "" {
-		return ip
-	}
-
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return ip
 }

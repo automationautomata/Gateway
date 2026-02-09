@@ -72,7 +72,7 @@ func buildServer(fileConf config.FileConfig, envConf config.EnvConfig) (*http.Se
 		return nil, fmt.Errorf("cannot bootstrap reverse proxy: %w", err)
 	}
 
-	limiter, err := provideRateLimitMiddleware(*fileConf.EdgeLimiter, proxyLimiterRedis, logger)
+	limiter, err := provideEdgeLimiter(*fileConf.EdgeLimiter, proxyLimiterRedis, logger)
 	if err != nil {
 		return nil, fmt.Errorf("cannot bootstrap rate limit middleware: %w", err)
 	}
