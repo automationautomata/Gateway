@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build gateway image
+        run: docker build -t gateway .
+
+  e2e-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start environment
+        run: docker compose -f docker-compose.test.yaml up -d --build --wait
+
+      - name: Run integration tests
+        run: docker compose -f docker-compose.test.yaml run --rm test-client
+
+      - name: Show gateway logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.test.yaml logs gateway
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.test.yaml down -v --remove-orphans
