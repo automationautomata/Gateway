@@ -15,7 +15,7 @@ check_hosts
 echo test proxy - success
 
 # test edge limiter 
-sleep 1 
+sleep 1.3
 check_hosts && $(wget -qO- http://somehost.ex/ 2>&1 | grep -q "Too Many Requests")
 
 echo test edge limiter - success
