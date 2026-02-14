@@ -3,109 +3,111 @@ package proxy
 import (
 	"fmt"
 	"net/http"
-	"strings"
 
 	"gateway/config"
 	"gateway/server/common"
 	"gateway/server/interfaces"
 )
 
-type proxyLimiter struct {
+type limiterFacede struct {
 	interfaces.Limiter
 	metric interfaces.LimiterMetric
 }
 
+func (l *limiterFacede) allowRequest(r *http.Request, key string) (bool, error) {
+	allowed, err := l.Allow(r.Context(), key)
+	if err != nil {
+		return false, err
+	}
+
+	l.metric.Inc(allowed, key)
+	return allowed, nil
+}
+
 type HttpReverseProxy struct {
-	hostMap      *hostRulesMap
-	defaultProxy *proxy
-	lim          *proxyLimiter
-	metric       interfaces.ProxyMetric
-	log          interfaces.Logger
-}
-type ProxyOption func(*HttpReverseProxy)
+	router *router
 
-func WithLimiter(lim interfaces.Limiter, metric interfaces.LimiterMetric) ProxyOption {
-	return func(hp *HttpReverseProxy) {
-		hp.lim = &proxyLimiter{lim, metric}
+	lim *limiterFacede
+
+	metric interfaces.ProxyMetric
+	log    interfaces.Logger
+}
+
+type Option func(*HttpReverseProxy)
+
+func WithLimiter(l interfaces.Limiter, m interfaces.LimiterMetric) Option {
+	return func(p *HttpReverseProxy) {
+		p.lim = &limiterFacede{
+			Limiter: l,
+			metric:  m,
+		}
 	}
 }
 
-type HttpProxyInput struct {
-	Rules       config.ReverseProxyRules
-	Log         interfaces.Logger
-	ProxyMetric interfaces.ProxyMetric
+type Input struct {
+	Settings config.ProxySettings
+	Log      interfaces.Logger
+	Metric   interfaces.ProxyMetric
+	Options  []Option
 }
 
-func NewHttpReverseProxy(input HttpProxyInput, options ...ProxyOption) (p *HttpReverseProxy, err error) {
-	p = &HttpReverseProxy{metric: input.ProxyMetric, log: input.Log}
-	for _, opt := range options {
-		opt(p)
+func NewHttpReverseProxy(input Input) (*HttpReverseProxy, error) {
+	p := &HttpReverseProxy{
+		metric: input.Metric,
+		log:    input.Log,
+	}
+	if input.Options != nil {
+		for _, opt := range input.Options {
+			opt(p)
+		}
 	}
 
-	p.defaultProxy, err = newProxy(input.Rules.Default, "/")
+	settings := input.Settings
+	router, err := newRouter(
+		settings.Routes, settings.Upstreams, settings.DefaultUpstream,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create deafult reverse proxy: %w", err)
+		return nil, fmt.Errorf("cannot create host routes: %w", err)
 	}
 
-	if input.Rules.Hosts == nil {
-		return p, nil
-	}
+	p.router = router
 
-	p.hostMap, err = newHostRulesMap(input.Rules.Hosts)
-	if err != nil {
-		return nil, fmt.Errorf("cannot create reverse proxy: %w", err)
-	}
 	return p, nil
 }
 
-func (hp *HttpReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	host := common.GetHost(r)
-	p := hp.getProxy(host, r.URL.Path)
+func (p *HttpReverseProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	proxy := p.router.find(common.GetHost(r), common.NormalizePath(r.URL.Path))
 
-	hp.log.Debug(r.Context(), "proxy", map[string]any{
-		"host": host, "path": r.URL.Path, "to": p.backend,
+	if proxy == nil {
+		http.Error(w, "no upstream configured", http.StatusBadGateway)
+		return
+	}
+
+	p.log.Debug(r.Context(), "proxy request", map[string]any{
+		"host":     r.Host,
+		"path":     r.URL.Path,
+		"upstream": proxy.upstream,
 	})
 
-	if hp.lim != nil {
-		allow, err := hp.lim.Allow(r.Context(), p.backend)
+	if p.lim != nil {
+		allow, err := p.lim.allowRequest(r, proxy.upstream)
 		if err != nil {
-			msg := fmt.Sprintf("rate limiter failed to %s", p.backend)
-			hp.log.Error(r.Context(), msg, map[string]any{"error": err})
-		}
+			p.log.Error(
+				r.Context(),
+				"rate limiter error",
+				map[string]any{"upstream": proxy.upstream, "error": err},
+			)
 
-		hp.lim.metric.Inc(allow, p.backend)
-		if !allow {
+			http.Error(w, "rate limiter failed", http.StatusInternalServerError)
 			return
 		}
-	}
 
-	hp.metric.Inc(p.backend)
-	p.ServeHTTP(w, r)
-}
-
-func (hp *HttpReverseProxy) getProxy(host, path string) *proxy {
-	if hp.hostMap == nil {
-		return hp.defaultProxy
-	}
-	path = normalizePath(path)
-
-	rule, ok := hp.hostMap.Get(host)
-	if !ok {
-		return hp.defaultProxy
-	}
-
-	var curPath strings.Builder
-	for _, part := range strings.Split(path, "/") {
-		curPath.WriteString(part)
-		curPath.WriteString("/")
-		if proxy, ok := rule.pathRules.Get(curPath.String()); ok {
-			return proxy
+		if !allow {
+			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 		}
+		return
 	}
 
-	if rule.defaultProxy != nil {
-		return rule.defaultProxy
-	}
-
-	return hp.defaultProxy
+	p.metric.Inc(proxy.upstream)
+	proxy.ServeHTTP(w, r)
 }

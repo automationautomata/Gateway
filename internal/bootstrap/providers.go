@@ -29,23 +29,26 @@ func provideProxyHandler(cfg config.ReverseProxyConfig, rdb *redis.Client, log i
 	proxyMetric := metrics.NewProxyMetric(proxyMetricName)
 	proxyMetric.StartCount()
 
-	input := proxy.HttpProxyInput{
-		Rules:       cfg.Rules,
-		Log:         log,
-		ProxyMetric: proxyMetric,
+	input := proxy.Input{
+		Settings: cfg.ProxySettings,
+		Log:      log,
+		Metric:   proxyMetric,
 	}
-	if cfg.LimiterConfig == nil {
+	if cfg.Limiter != nil {
 		return proxy.NewHttpReverseProxy(input)
 	}
 
-	lim, err := provideLimiter(*cfg.LimiterConfig, rdb)
+	lim, err := provideLimiter(*cfg.Limiter, rdb)
 	if err != nil {
 		return nil, err
 	}
 
 	limMetric := metrics.NewLimiterMetric(proxyLimiterMetricName)
 	limMetric.StartCount()
-	return proxy.NewHttpReverseProxy(input, proxy.WithLimiter(lim, limMetric))
+
+	input.Options = []proxy.Option{proxy.WithLimiter(lim, limMetric)}
+
+	return proxy.NewHttpReverseProxy(input)
 }
 
 func provideEdgeLimiter(cfg config.EdgeLimiterConfig, rdb *redis.Client, log interfaces.Logger) (*mw.RateLimiter, error) {

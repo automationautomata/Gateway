@@ -6,6 +6,7 @@ import (
 	"gateway/config"
 	"gateway/internal/common"
 	"gateway/server"
+	"strings"
 	"time"
 
 	"gateway/server/handlers"
@@ -61,7 +62,7 @@ func buildServer(fileConf config.FileConfig, envConf config.EnvConfig) (*http.Se
 		return nil, fmt.Errorf("cannot connect redis %s: %w", envConf.ProxyLimiterRedisURL, err)
 	}
 
-	if err := checkProxyRules(fileConf.Proxy.Rules); err != nil {
+	if err := checkProxyRoutes(fileConf.Proxy); err != nil {
 		return nil, err
 	}
 
@@ -101,20 +102,20 @@ func setConfigDeafultValues(cfg *config.FileConfig) {
 		cfg.EdgeLimiter.Limiter.Storage = v
 	}
 
-	if cfg.Proxy.LimiterConfig != nil && cfg.Proxy.LimiterConfig.Storage == nil {
-		cfg.Proxy.LimiterConfig.Storage = v
+	if cfg.Proxy.Limiter != nil && cfg.Proxy.Limiter.Storage == nil {
+		cfg.Proxy.Limiter.Storage = v
 	}
 }
 
-func checkProxyRules(cfg config.ReverseProxyRules) error {
+func checkProxyRoutes(cfg config.ReverseProxyConfig) error {
 	reserved := common.NewSet(reservedEndpoints...)
 
-	for _, hostCfg := range cfg.Hosts {
-		for endpoint := range hostCfg.Pathes {
-			if reserved.Has(endpoint) {
+	for _, route := range cfg.Routes {
+		for _, path := range route.Paths {
+			if reserved.Has(strings.TrimSuffix(path.Path, "/")) {
 				return fmt.Errorf(
 					"proxy rule contain reserved endpoint: %s%s",
-					hostCfg.Host, endpoint,
+					route.Host, path.Path,
 				)
 			}
 		}

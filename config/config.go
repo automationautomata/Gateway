@@ -17,20 +17,9 @@ const (
 	Error LogLevel = "ERROR"
 )
 
-type HostRules struct {
-	Host    string            `yaml:"host"`
-	Pathes  map[string]string `yaml:"pathes"`
-	Default *string           `yaml:"default"`
-}
-
-type ReverseProxyRules struct {
-	Hosts   []HostRules `yaml:"hosts"`
-	Default string      `yaml:"default"`
-}
-
 type ReverseProxyConfig struct {
-	Rules         ReverseProxyRules `yaml:"rules"`
-	LimiterConfig *LimiterSettings  `yaml:"limiter"`
+	ProxySettings `yaml:",inline"`
+	Limiter       *LimiterSettings `yaml:"limiter"`
 }
 
 type EdgeLimiterConfig struct {

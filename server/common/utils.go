@@ -31,3 +31,10 @@ func GetHost(r *http.Request) string {
 	}
 	return host
 }
+
+func NormalizePath(path string) string {
+	if path == "" {
+		return "/"
+	}
+	return strings.TrimSuffix(path, "/")
+}
