@@ -17,6 +17,11 @@ type ProxyMetric interface {
 	Inc(dest string)
 }
 
+type CacheMetric interface {
+	IncHit(reqType, dest string)
+	IncMiss(reqType, dest string)
+}
+
 type Middleware interface {
 	Wrap(next http.Handler) http.Handler
 }
