@@ -11,24 +11,24 @@ x-test-host-template: &test_host_template
 services:
   test_single:
     <<: *test_host_template
-    hostname: test.single
+    hostname: test.host.single
     command: sh /run-servers.sh 8080
     networks:
-      backends-net:
+      - upstreams-net
 
   test_multy:
     <<: *test_host_template
-    hostname: test.multy
+    hostname: test.host.multy
     command: sh /run-servers.sh 9000 9001
     networks:
-      backends-net:
+      - upstreams-net
     
   redis:
     image: redis:7
     command: ["redis-server", "--databases", "2"]
     hostname: redis
     networks:
-        redis-net:
+      - redis-net
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -41,19 +41,19 @@ services:
     volumes:
       - ./testdata/config.yaml:/usr/etc/gateway/config.yaml:ro
     environment:
-      EDGE_LIMITER_REDIS_URL: "redis://redis:6379/0"
-      PROXY_LIMITER_REDIS_URL: "redis://redis:6379/1"
-      LOG_LEVEL: "DEBUG"
+      LOG_LEVEL: DEBUG
+      EDGE_LIMITER_REDIS_URL: redis://redis:6379/0
+      INTERNAL_LIMITER_REDIS_URL: redis://redis:6379/1
     depends_on:
       redis:
         condition: service_healthy
     networks:
       redis-net:
-      backends-net:
+      upstreams-net:
       test-client-net:
         aliases: 
-          - multypath.ex
-          - rootpath.ex
+          - multyple.path.ex
+          - single.path.ex
           - somehost.ex
     restart: unless-stopped
     healthcheck:
@@ -79,7 +79,7 @@ services:
     restart: "no"
 
 networks:
-  backends-net:
+  upstreams-net:
     driver: bridge
 
   redis-net:

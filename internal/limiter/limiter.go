@@ -3,11 +3,16 @@ package limiter
 import (
 	"context"
 	"fmt"
+	"gateway/server/interfaces"
 )
 
 type limiter struct {
 	facade *AlgorithmFacade
 	stor   Storage
+}
+
+func NewLimiter(facade *AlgorithmFacade, stor Storage) interfaces.Limiter {
+	return &limiter{facade: facade, stor: stor}
 }
 
 func (l *limiter) Allow(ctx context.Context, key string) (bool, error) {
