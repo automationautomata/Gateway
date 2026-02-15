@@ -1,37 +1,43 @@
 proxy:
-  rules:
-    hosts:
-      - host: "multypath.ex"
+  router:
+    upstreams:
+      multy-1: http://test.host.multy:9000
+      multy-2: http://test.host.multy:9001
+      single: http://test.host.single:8080
+
+    default: single
+    routes:
+      - host: multyple.path.ex
+        default: single
         pathes:
-          "/app": "http://test.multy:9001"
-          "/api": "http://test.multy:9000"
+          - path: /v1
+            upstream: multy-1
 
-        default: "http://test.single:8080"
-
-      - host: "rootpath.ex"
+          - path: /v2
+            upstream: multy-2
+            
+      - host: single.path.ex
         pathes:
-          "/": "http://test.single:8080"
-
-    default: "http://test.single:8080"
-
+          - path: /
+            upstream: single
+    
   limiter:
-    type: "token_bucket"
+    type: token_bucket
     algorithm:
       capacity: 100
       rate: 100.5
-
-
+      
 edge_limiter:
+  is_global: true
   limiter:
-    type: "fixed_window"
+    type: fixed_window
     algorithm:
       limit: 4
       window_duration: 1s
     storage: 
       ttl: 1s
 
-  is_global_limiter: true
-
 metrics:
   hosts:
-    - "localhost"
+    - localhost
+    

@@ -52,7 +52,7 @@ sequenceDiagram
 
 ### Метрики
 Доступ к метрикам - по белому списку. Используются три счётчика:
-- *proxy* - количество запросов, направленных до сервису.
+- *upstreamProxy* - количество запросов, направленных до сервису.
 - *internal_limiter* и *edge_limiter* - считают решения внутреннего лимитера, отклонил/не отклонил
 
 ### Структура конфигурации (config.yaml + env)
@@ -67,65 +67,95 @@ PROXY_LIMITER_REDIS_URL=redis://redis:6379/1
 
 ```yaml
 proxy:
-  rules:
-    default: http://fallback:8080
-    hosts:
-      - host: api.example.com
-        default: http://api-backend:3000
-        pathes:
-          /v1/: http://v1-service:8081
-          /admin/: http://admin-panel:9000
+  router:
+    upstreams:
+      legacy: http://localhost:8080
+      orders: http://localhost:9000
+      users: http://localhost:9001
 
-  limiter:                    # опционально — лимит на каждый backend
+    default: legacy
+
+    routes:
+      - host: new.api.ex
+        default: legacy
+        pathes:
+          - path: /api/orders
+            upstream: orders
+
+          - path: /api/users
+            upstream: users
+        
+      - host: old.api.ex
+        pathes:
+          - path: /
+            upstream: legacy
+    
+  limiter:                      # опционально — лимит на каждый backend
     type: token_bucket
     algorithm:
       capacity: 100
-      rate: 50.0
-
-edge_limiter:
-  is_global_limiter: false    # false = по IP, true = глобальный
+      rate: 100.5
+      
+edge_limiter: 
+  is_global: true               # false = по IP, true = глобальный
   limiter:
     type: fixed_window
     algorithm:
-      limit: 300
-      window_duration: 1m
+      limit: 4
+      window_duration: 1s
+    storage: 
+      ttl: 1s
 
 metrics:
   hosts:
-    - 127.0.0.1
+    - localhost
 ```
 
 Примеры конфигураций
 1. Простой прокси без лимитов
 ```yaml
 proxy:
-  rules:
-    default: http://localhost:9000
+  router:
+    upstreams:
+      base: http://localhost:8080
+    default: base
 ```
 
-1. Разные бэкенды по хостам
+2. Разные бэкенды по хостам
 ```yaml
 proxy:
-  rules:
+  router:
     default: http://main-app:8080
     hosts:
       - host: api.host
         default: http://api-v2:3000
       - host: admin.host
         default: http://admin:9001
+proxy:
+  router:
+    upstreams:
+      api: http://localhost:9000
+      admin: http://localhost:9001
+
+    routes:
+      - host: api.host
+        default: legacy
+
+      - host: admin.host
+      - default: admin      
 ```
 
-1. Жёсткий лимит 100 запросов/мин с каждого IP
+3. Жёсткий лимит 100 запросов/мин с каждого IP
 ```yaml
 edge_limiter:
-  is_global_limiter: false
+  is_global: false
   limiter:
     type: fixed_window
     algorithm:
       limit: 100
       window_duration: 1m
 ```
-1. Token Bucket 500 токенов, пополнение 10/сек
+4. Token Bucket 500 токенов, пополнение 10/сек
 ```yaml
 edge_limiter:
   limiter:
