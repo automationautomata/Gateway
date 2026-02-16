@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"fmt"
 	"gateway/config"
 	"gateway/internal/algorithm"
 	"gateway/internal/algorithm/fixedwindow"
@@ -10,9 +11,8 @@ import (
 	"gateway/internal/logging"
 	"gateway/internal/metrics"
 	"gateway/internal/storage"
+	"gateway/server"
 	"gateway/server/interfaces"
-	mw "gateway/server/middlewares"
-	"gateway/server/proxy"
 	"log/slog"
 	"os"
 
@@ -20,51 +20,82 @@ import (
 )
 
 const (
-	proxyMetricName        = "proxy_requests"
-	proxyLimiterMetricName = "internal_limiter"
-	edgeLimiterMetricName  = "edge_limiter"
+	proxyMetricName           = "proxy_requests"
+	internalLimiterMetricName = "internal_limiter"
+	edgeLimiterMetricName     = "edge_limiter"
+
+	gatewayLoggerName         = "gateway"
+	edgeLimiterLoggerName     = "edge_limiter"
+	internalLimiterLoggerName = "internal_limiter"
 )
 
-func provideProxyHandler(cfg config.ReverseProxyConfig, rdb *redis.Client, log interfaces.Logger) (*proxy.HttpReverseProxy, error) {
-	proxyMetric := metrics.NewProxyMetric(proxyMetricName)
-	proxyMetric.StartCount()
-
-	input := proxy.Input{
-		Settings: cfg.ProxySettings,
-		Log:      log,
-		Metric:   proxyMetric,
-	}
-	if cfg.Limiter != nil {
-		return proxy.NewHttpReverseProxy(input)
-	}
-
-	lim, err := provideLimiter(*cfg.Limiter, rdb)
+func provideGateway(fileConf config.FileConfig, envConf config.EnvConfig, rootLogger *logging.SlogAdapter) (*server.Gateway, error) {
+	edgeLimiterRedis, err := provideRedisClient(envConf.EdgeLimiterRedisURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create redis client %s: %w", envConf.EdgeLimiterRedisURL, err)
 	}
 
-	limMetric := metrics.NewLimiterMetric(proxyLimiterMetricName)
-	limMetric.StartCount()
+	egdeLim, err := provideLimiter(fileConf.EdgeLimiter.Limiter, edgeLimiterRedis)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create edge limiter %w", err)
+	}
 
-	input.Options = []proxy.Option{proxy.WithLimiter(lim, limMetric)}
+	isGlobal := *fileConf.EdgeLimiter.IsGlobal
+	proxyConfig := fileConf.Proxy
 
-	return proxy.NewHttpReverseProxy(input)
+	gatewayLogger := rootLogger.Component(gatewayLoggerName)
+	edgeLimiterLogger := rootLogger.Component(edgeLimiterLoggerName)
+
+	builder := server.NewGatewayBuilder()
+	builder = builder.
+		Logger(gatewayLogger).
+		Router(proxyConfig.Router, provideProxyMetric()).
+		EdgeLimiter(
+			server.LimiterOptions{
+				Log:    edgeLimiterLogger,
+				Metric: provideEdgeLimiterMetric(),
+				Lim:    egdeLim,
+			},
+			isGlobal,
+		)
+
+	if proxyConfig.Limiter != nil {
+		internalLimiterRedis, err := provideRedisClient(envConf.InternalLimiterRedisURL)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create redis client %s: %w", envConf.InternalLimiterRedisURL, err)
+		}
+
+		internalLim, err := provideLimiter(fileConf.EdgeLimiter.Limiter, internalLimiterRedis)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create edge limiter %w", err)
+		}
+
+		builder = builder.InternalLimiter(server.LimiterOptions{
+			Log:    rootLogger.Component(internalLimiterLoggerName),
+			Metric: provideInternalLimiterMetric(),
+			Lim:    internalLim,
+		})
+	}
+
+	return builder.Build()
 }
 
-func provideEdgeLimiter(cfg config.EdgeLimiterConfig, rdb *redis.Client, log interfaces.Logger) (*mw.RateLimiter, error) {
-	lim, err := provideLimiter(cfg.Limiter, rdb)
-	if err != nil {
-		return nil, err
-	}
+func provideProxyMetric() interfaces.ProxyMetric {
+	proxyMetric := metrics.NewProxyMetric(proxyMetricName)
+	proxyMetric.StartCount()
+	return proxyMetric
+}
 
-	keyType := mw.Global
-	if !(*cfg.IsGlobalLimiter) {
-		keyType = mw.IP
-	}
-
+func provideEdgeLimiterMetric() interfaces.LimiterMetric {
 	limMetric := metrics.NewLimiterMetric(edgeLimiterMetricName)
 	limMetric.StartCount()
-	return mw.NewRateLimiter(lim, log, mw.WithKeyType(keyType), mw.WithMetric(limMetric)), nil
+	return limMetric
+}
+
+func provideInternalLimiterMetric() interfaces.LimiterMetric {
+	limMetric := metrics.NewLimiterMetric(internalLimiterMetricName)
+	limMetric.StartCount()
+	return limMetric
 }
 
 func provideLimiter(cfg config.LimiterSettings, rdb *redis.Client) (interfaces.Limiter, error) {
@@ -74,7 +105,7 @@ func provideLimiter(cfg config.LimiterSettings, rdb *redis.Client) (interfaces.L
 	}
 
 	stor := storage.NewRedisStorage(rdb, cfg.Storage.KeyTTL)
-	return limiter.ProvideLimiter(fact, stor), nil
+	return limiter.NewLimiter(fact, stor), nil
 }
 
 func provideAlgorithmFacade(algType config.AlgorithmType, settings any) (*limiter.AlgorithmFacade, error) {
@@ -114,16 +145,16 @@ func provideAlgorithmFacade(algType config.AlgorithmType, settings any) (*limite
 	return facade, nil
 }
 
-func provideLogger(level config.LogLevel) interfaces.Logger {
+func provideRootLogger(level config.LogLevel) *logging.SlogAdapter {
 	var slogLevel slog.Level
 	switch level {
-	case config.Debug:
+	case config.LevelDebug:
 		slogLevel = slog.LevelDebug
-	case config.Info:
+	case config.LevelInfo:
 		slogLevel = slog.LevelInfo
-	case config.Warn:
+	case config.LevelWarn:
 		slogLevel = slog.LevelWarn
-	case config.Error:
+	case config.LevelError:
 		slogLevel = slog.LevelError
 	}
 

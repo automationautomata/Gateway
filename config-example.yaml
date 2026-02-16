@@ -1,38 +1,43 @@
 proxy:
-  rules:
-    hosts:
-      - host: "example.com"
+  router:
+    upstreams:
+      legacy: http://localhost:8080
+      orders: http://localhost:9000
+      users: http://localhost:9001
+
+    default: legacy
+
+    routes:
+      - host: new.api.ex
+        default: legacy
         pathes:
-          "/api": "http://localhost:9000"
-          "/auth": "http://localhost:9001"
-        default: "http://localhost:9002"
+          - path: /api/orders
+            upstream: orders
 
-      - host: "another.com"
+          - path: /api/users
+            upstream: users
+        
+      - host: old.api.ex
         pathes:
-          "/": "http://localhost:9100"
-        default: "http://localhost:9101"
-
-    default: http://localhost:9200
-
+          - path: /
+            upstream: legacy
+    
   limiter:
-    type: "fixed_window"
+    type: token_bucket
     algorithm:
-      limit: 4
-      window_duration: 1s
-    storage: 
-      ttl: 20s
-
-
+      capacity: 100
+      rate: 100.5
+      
 edge_limiter:
+  is_global: true
   limiter:
-    type: "fixed_window"
+    type: fixed_window
     algorithm:
       limit: 4
       window_duration: 1s
     storage: 
-      ttl: 20s
-  is_global_limiter: true
+      ttl: 1s
 
 metrics:
   hosts:
-    - "localhost"
+    - localhost

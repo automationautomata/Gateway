@@ -11,20 +11,20 @@ import (
 type LogLevel string
 
 const (
-	Debug LogLevel = "DEBUG"
-	Info  LogLevel = "INFO"
-	Warn  LogLevel = "WARN"
-	Error LogLevel = "ERROR"
+	LevelDebug LogLevel = "DEBUG"
+	LevelInfo  LogLevel = "INFO"
+	LevelWarn  LogLevel = "WARN"
+	LevelError LogLevel = "ERROR"
 )
 
 type ReverseProxyConfig struct {
-	ProxySettings `yaml:",inline"`
-	Limiter       *LimiterSettings `yaml:"limiter"`
+	Router  RouterSettings   `yaml:"router"`
+	Limiter *LimiterSettings `yaml:"limiter,omitempty"`
 }
 
 type EdgeLimiterConfig struct {
-	Limiter         LimiterSettings `yaml:"limiter"`
-	IsGlobalLimiter *bool           `yaml:"is_global_limiter,omitempty"`
+	Limiter  LimiterSettings `yaml:"limiter"`
+	IsGlobal *bool           `yaml:"is_global,omitempty"`
 }
 
 type MetricsConfig struct {
@@ -33,7 +33,7 @@ type MetricsConfig struct {
 
 type FileConfig struct {
 	Proxy       ReverseProxyConfig `yaml:"proxy"`
-	EdgeLimiter *EdgeLimiterConfig `yaml:"edge_limiter"`
+	EdgeLimiter EdgeLimiterConfig  `yaml:"edge_limiter"`
 	Metrics     MetricsConfig      `yaml:"metrics"`
 }
 
@@ -45,9 +45,9 @@ type ServerConfig struct {
 }
 
 type EnvConfig struct {
-	EdgeLimiterRedisURL  string   `env:"EDGE_LIMITER_REDIS_URL"`
-	ProxyLimiterRedisURL string   `env:"PROXY_LIMITER_REDIS_URL"`
-	LogLevel             LogLevel `env:"LOG_LEVEL" envDefault:"ERROR"`
+	EdgeLimiterRedisURL     string    `env:"EDGE_LIMITER_REDIS_URL"`
+	InternalLimiterRedisURL string    `env:"INTERNAL_LIMITER_REDIS_URL"`
+	LogLevel                *LogLevel `env:"LOG_LEVEL"`
 	ServerConfig
 }
 

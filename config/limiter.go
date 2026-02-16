@@ -38,7 +38,7 @@ type SlidingWindowCounterSettings struct {
 }
 
 type StorageSettings struct {
-	KeyTTL time.Duration `yaml:"ttl,omitempty"`
+	KeyTTL time.Duration `yaml:"ttl"`
 }
 
 type LimiterSettings struct {

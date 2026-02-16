@@ -13,6 +13,10 @@ func NewSlogAdapter(l *slog.Logger) *SlogAdapter {
 	return &SlogAdapter{inner: l}
 }
 
+func (l *SlogAdapter) Component(name string) *SlogAdapter {
+	return NewSlogAdapter(l.inner.With("component", name))
+}
+
 func (l *SlogAdapter) Debug(ctx context.Context, msg string, fields map[string]any) {
 	l.inner.LogAttrs(ctx, slog.LevelDebug, msg, mapToAttrs(fields)...)
 }

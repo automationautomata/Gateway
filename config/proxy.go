@@ -10,10 +10,10 @@ type Path struct {
 type Route struct {
 	Host    string  `yaml:"host"`
 	Paths   []Path  `yaml:"pathes"`
-	Default *string `yaml:"default"`
+	Default *string `yaml:"default,omitempty"`
 }
 
-type ProxySettings struct {
+type RouterSettings struct {
 	Upstreams       Upstreams `yaml:"upstreams"`
 	Routes          []Route   `yaml:"routes"`
 	DefaultUpstream *string   `yaml:"default"`
