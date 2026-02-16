@@ -2,7 +2,9 @@ package interfaces
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"time"
 )
 
 type Limiter interface {
@@ -18,8 +20,7 @@ type ProxyMetric interface {
 }
 
 type CacheMetric interface {
-	IncHit(reqType, dest string)
-	IncMiss(reqType, dest string)
+	Inc(host, path, query string, hit bool)
 }
 
 type Middleware interface {
@@ -31,4 +32,10 @@ type Logger interface {
 	Info(ctx context.Context, msg string, fields map[string]any)
 	Warn(ctx context.Context, msg string, fields map[string]any)
 	Error(ctx context.Context, msg string, fields map[string]any)
+}
+
+type LoadFunc[T json.Marshaler] func() (T, time.Duration, error)
+
+type Cache[T json.Marshaler] interface {
+	Get(ctx context.Context, key string, loader LoadFunc[T]) (T, error)
 }
