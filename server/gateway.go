@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
-	"gateway/config"
-	"gateway/server/common"
+	"gateway/server/cache"
 	"gateway/server/interfaces"
 	"gateway/server/limiter"
+	"gateway/server/urlutils"
 	"net/http"
 )
 
@@ -15,12 +15,13 @@ type Gateway struct {
 	InternalLimiter *limiter.RateLimiter // может быть nil
 	Router          *UpstreamRouter
 	Log             interfaces.Logger
+	Cache           cache.CacheMiddleware
 }
 
 func (g *Gateway) Handler() http.Handler {
 	return g.EdgeLimiter.Wrap(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			proxy := g.Router.find(common.GetHost(r), common.NormalizePath(r.URL.Path))
+			proxy := g.Router.find(urlutils.GetHost(r), urlutils.NormalizePath(r.URL.Path))
 
 			if proxy == nil {
 				http.Error(w, "no upstream configured", http.StatusBadGateway)
@@ -28,10 +29,9 @@ func (g *Gateway) Handler() http.Handler {
 					r.Context(),
 					"proxy request failed",
 					map[string]any{
-						"host": common.GetHost(r), "path": r.URL.Path,
+						"host": urlutils.GetHost(r), "path": r.URL.Path,
 					},
 				)
-
 				return
 			}
 
@@ -39,7 +39,7 @@ func (g *Gateway) Handler() http.Handler {
 				r.Context(),
 				"proxy request",
 				map[string]any{
-					"host": common.GetHost(r), "path": r.URL.Path, "upstream": proxy.Upstream(),
+					"host": urlutils.GetHost(r), "path": r.URL.Path, "upstream": proxy.Upstream(),
 				},
 			)
 
@@ -73,10 +73,8 @@ func NewGatewayBuilder() *GatewayBuilder {
 	return &GatewayBuilder{}
 }
 
-func (b *GatewayBuilder) Router(settings config.RouterSettings, metric interfaces.ProxyMetric) *GatewayBuilder {
-	router, err := NewUpstreamRouter(
-		settings.Routes, settings.Upstreams, metric, settings.DefaultUpstream,
-	)
+func (b *GatewayBuilder) Router(opts RouterOptions) *GatewayBuilder {
+	router, err := NewUpstreamRouter(opts)
 	if err != nil {
 		b.err = fmt.Errorf("cannot create router for proxy: %w", err)
 	}

@@ -16,9 +16,10 @@ func (r *SyncMap[K, V]) Add(k string, v V) {
 }
 
 func (r *SyncMap[K, V]) Get(k K) (V, bool) {
-	p, ok := r.m.Load(k)
+	v, ok := r.m.Load(k)
 	if !ok {
-		return *new(V), false
+		var empty V
+		return empty, false
 	}
-	return p.(V), ok
+	return v.(V), true
 }

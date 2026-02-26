@@ -45,9 +45,8 @@ type ServerConfig struct {
 }
 
 type EnvConfig struct {
-	EdgeLimiterRedisURL     string    `env:"EDGE_LIMITER_REDIS_URL"`
-	InternalLimiterRedisURL string    `env:"INTERNAL_LIMITER_REDIS_URL"`
-	LogLevel                *LogLevel `env:"LOG_LEVEL"`
+	RedisURL string    `env:"REDIS_URL"`
+	LogLevel *LogLevel `env:"LOG_LEVEL"`
 	ServerConfig
 }
 

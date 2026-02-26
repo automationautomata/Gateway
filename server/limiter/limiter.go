@@ -2,8 +2,8 @@ package limiter
 
 import (
 	"fmt"
-	"gateway/server/common"
 	"gateway/server/interfaces"
+	"gateway/server/urlutils"
 	"net/http"
 )
 
@@ -60,7 +60,7 @@ func (rl *RateLimiter) Wrap(next http.Handler) http.Handler {
 		func(w http.ResponseWriter, r *http.Request) {
 			var key string
 
-			ip := common.GetIP(r)
+			ip := urlutils.GetIP(r)
 			switch rl.keyType {
 			case Global:
 				key = globalKey
@@ -82,7 +82,7 @@ func (rl *RateLimiter) Wrap(next http.Handler) http.Handler {
 			rl.log.Debug(
 				r.Context(),
 				"handle request",
-				map[string]any{"from": ip, "to": common.GetHost(r), "allowed": allow},
+				map[string]any{"from": ip, "to": urlutils.GetHost(r), "allowed": allow},
 			)
 
 			rl.metric.Inc(allow, key)

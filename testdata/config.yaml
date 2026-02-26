@@ -20,7 +20,8 @@ proxy:
         pathes:
           - path: /
             upstream: single
-    
+            cache:
+              /queries: 1s
   limiter:
     type: token_bucket
     algorithm:

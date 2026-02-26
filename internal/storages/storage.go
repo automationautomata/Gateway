@@ -1,4 +1,4 @@
-package storage
+package storages
 
 import (
 	"context"
@@ -42,8 +42,7 @@ func (s *redisStorage) Update(ctx context.Context, input lim.UpdateInput, update
 				if err != nil {
 					return err
 				}
-				pipe.Set(ctx, key, data, s.keyTTL)
-				return nil
+				return pipe.Set(ctx, key, data, s.keyTTL).Err()
 			})
 			return err
 		},

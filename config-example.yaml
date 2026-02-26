@@ -13,10 +13,14 @@ proxy:
         pathes:
           - path: /api/orders
             upstream: orders
+            cache:
+              /recent: 1ms
 
           - path: /api/users
             upstream: users
-        
+            cache:
+              /online: 2s
+
       - host: old.api.ex
         pathes:
           - path: /

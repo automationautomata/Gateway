@@ -42,7 +42,7 @@ type StorageSettings struct {
 }
 
 type LimiterSettings struct {
-	Storage   *StorageSettings `yaml:"storage,omitempty"`
+	Storage   *StorageSettings `yaml:"storages,omitempty"`
 	Type      AlgorithmType    `yaml:"type"`
 	Algorithm any              `yaml:"algorithm"`
 }
@@ -57,7 +57,7 @@ func (l *LimiterSettings) UnmarshalYAML(node *yaml.Node) error {
 		return err
 	}
 	var raw struct {
-		Storage   *StorageSettings `yaml:"storage,omitempty"`
+		Storage   *StorageSettings `yaml:"storages,omitempty"`
 		Type      AlgorithmType    `yaml:"type"`
 		Algorithm yaml.Node        `yaml:"algorithm"`
 	}

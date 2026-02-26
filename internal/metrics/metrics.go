@@ -9,6 +9,7 @@ import (
 var (
 	limiterLabels = []string{"allowed", "dest"}
 	proxyLabels   = []string{"dest"}
+	cacheLabels   = []string{"host", "path", "query", "hit"}
 )
 
 type metric struct {
@@ -64,4 +65,18 @@ func NewProxyMetric(name string) *proxyMetric {
 
 func (m *proxyMetric) Inc(dest string) {
 	m.metric.valuesChan <- []string{dest}
+}
+
+type cacheMetric struct {
+	*metric
+}
+
+func NewCacheMetric(name string) *cacheMetric {
+	return &cacheMetric{
+		metric: newMetric(name, cacheLabels),
+	}
+}
+
+func (m *cacheMetric) Inc(host, path, query string, hit bool) {
+	m.metric.valuesChan <- []string{host, path, query, strconv.FormatBool(hit)}
 }

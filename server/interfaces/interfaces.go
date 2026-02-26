@@ -7,10 +7,6 @@ import (
 	"time"
 )
 
-type Limiter interface {
-	Allow(ctx context.Context, key string) (bool, error)
-}
-
 type LimiterMetric interface {
 	Inc(allowed bool, dest string)
 }
@@ -21,6 +17,10 @@ type ProxyMetric interface {
 
 type CacheMetric interface {
 	Inc(host, path, query string, hit bool)
+}
+
+type Limiter interface {
+	Allow(ctx context.Context, key string) (bool, error)
 }
 
 type Middleware interface {
@@ -34,8 +34,13 @@ type Logger interface {
 	Error(ctx context.Context, msg string, fields map[string]any)
 }
 
-type LoadFunc[T json.Marshaler] func() (T, time.Duration, error)
+type CacheContent interface {
+	json.Marshaler
+	json.Unmarshaler
+}
 
-type Cache[T json.Marshaler] interface {
-	Get(ctx context.Context, key string, loader LoadFunc[T]) (T, error)
+type LoadMissedFunc[T CacheContent] func(context.Context) (T, time.Duration, error)
+
+type CacheStorage[T CacheContent] interface {
+	Get(ctx context.Context, key string, loader LoadMissedFunc[T]) (T, error)
 }
