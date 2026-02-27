@@ -6,13 +6,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Upstreams map[string]string
+type UpstreamsAliases map[string]string
 
 type Caches map[string]time.Duration
 
 type UpstreamSettings struct {
-	Upstream string  `yaml:"upstream"`
-	Cache    *Caches `yaml:"cache"`
+	UpstreamAlias string  `yaml:"upstream"`
+	Cache         *Caches `yaml:"cache"`
 }
 
 type UpstreamDefault struct {
@@ -22,7 +22,7 @@ type UpstreamDefault struct {
 func (d *UpstreamDefault) UnmarshalYAML(node *yaml.Node) error {
 	d.UpstreamSettings = &UpstreamSettings{}
 	if node.Kind == yaml.ScalarNode {
-		if err := node.Decode(&d.Upstream); err != nil {
+		if err := node.Decode(&d.UpstreamAlias); err != nil {
 			return err
 		}
 		return nil
@@ -42,7 +42,7 @@ type Route struct {
 }
 
 type RouterSettings struct {
-	Upstreams Upstreams        `yaml:"upstreams"`
-	Routes    []Route          `yaml:"routes"`
-	Default   *UpstreamDefault `yaml:"default"`
+	UpstreamsAliases UpstreamsAliases `yaml:"upstreams"`
+	Routes           []Route          `yaml:"routes"`
+	Default          *UpstreamDefault `yaml:"default"`
 }

@@ -1,174 +1,81 @@
 package server
 
 import (
-	"fmt"
-	"net/url"
-	"strings"
-	"time"
-
-	"gateway/config"
-	"gateway/server/cache"
 	"gateway/server/common"
-	"gateway/server/interfaces"
 	"gateway/server/proxy"
 	"gateway/server/urlutils"
 )
 
-type UpstreamRouter struct {
-	hosts        *common.SyncMap[string, *host]
-	defaultProxy *ProxyAdapter
+type Router struct {
+	hosts         *common.SyncMap[string, *routes]
+	globalDefault *proxy.ReverseProxyAdapter
 }
 
-type CacheOptions struct {
-	Metric interfaces.CacheMetric
-	Cache  interfaces.CacheStorage[*cache.ResponseContent]
-	Log    interfaces.Logger
-}
-
-type ProxyOptions struct {
-	Upstreams config.Upstreams
-	Metric    interfaces.ProxyMetric
-	Default   *config.UpstreamSettings
-}
-
-type RouterOptions struct {
-	Routes []config.Route
-	Proxy  ProxyOptions
-	Cache  CacheOptions
-}
-
-func NewUpstreamRouter(opts RouterOptions) (router *UpstreamRouter, err error) {
-	hosts := common.NewSyncMap[string, *host]()
-
-	for _, r := range opts.Routes {
-		var def *config.UpstreamSettings
-		if r.Default != nil {
-			def = r.Default.UpstreamSettings
-		}
-		h, err := newHost(hostOptions{r.Paths, opts.Proxy, opts.Cache, def})
-		if err != nil {
-			return nil, fmt.Errorf("cannot create proxy for host %s: %w", r.Host, err)
-		}
-		hosts.Add(r.Host, h)
+func NewRouter() *Router {
+	return &Router{
+		hosts:         common.NewSyncMap[string, *routes](),
+		globalDefault: nil,
 	}
-	router = &UpstreamRouter{hosts: hosts}
+}
 
-	if opts.Proxy.Default != nil {
-		defSettings := opts.Proxy.Default
-		proxy, err := newProxyWithCache(
-			config.Path{Path: "/", UpstreamSettings: *defSettings}, opts.Proxy, opts.Cache,
-		)
-		if err != nil {
-			return nil, err
-		}
-		router.defaultProxy = proxy
+func (r *Router) Add(host, path string, proxy *proxy.ReverseProxyAdapter) {
+	h, ok := r.hosts.Get(host)
+	if !ok {
+		h = newHostRouter()
+		r.hosts.Add(host, h)
 	}
-	return router, nil
+	h.add(urlutils.NormalizePath(path), proxy)
+}
+
+func (r *Router) AddDefault(host string, proxy *proxy.ReverseProxyAdapter) {
+	h, ok := r.hosts.Get(host)
+	if !ok {
+		h = newHostRouter()
+		r.hosts.Add(host, h)
+	}
+	h.setDefault(proxy)
 }
 
 // Поиск по наибольшему общему префиксу пути
-func (r *UpstreamRouter) find(hostname, path string) *ProxyAdapter {
-	path = urlutils.NormalizePath(path)
+func (r *Router) Find(hostname, path string) (*proxy.ReverseProxyAdapter, bool) {
+	hasDefault := r.globalDefault == nil
 
 	h, ok := r.hosts.Get(hostname)
 	if !ok {
-		return r.defaultProxy
+		return r.globalDefault, hasDefault
 	}
 
-	var (
-		matched *ProxyAdapter
-		builder strings.Builder
-	)
-
-	builder.WriteString("/")
-
-	if p, ok := h.paths.Get(builder.String()); ok {
-		matched = p
+	p, ok := h.find(path)
+	if ok {
+		return p, true
 	}
-	for _, part := range strings.Split(path, "/")[1:] {
-		builder.WriteString(part)
-		if p, ok := h.paths.Get(builder.String()); ok {
-			matched = p
-		}
-		builder.WriteString("/")
-	}
-
-	if matched != nil {
-		return matched
-	}
-
-	if h.defaultProxy != nil {
-		return h.defaultProxy
-	}
-
-	return r.defaultProxy
+	return r.globalDefault, hasDefault
 }
 
-type host struct {
-	paths        *common.SyncMap[string, *ProxyAdapter]
-	defaultProxy *ProxyAdapter
+type routes struct {
+	paths        *urlutils.PathTree[*proxy.ReverseProxyAdapter]
+	defaultProxy *proxy.ReverseProxyAdapter
 }
 
-type hostOptions struct {
-	paths       []config.Path
-	proxy       ProxyOptions
-	cache       CacheOptions
-	defSettings *config.UpstreamSettings
-}
-
-func newHost(opts hostOptions) (h *host, err error) {
-	m := common.NewSyncMap[string, *ProxyAdapter]()
-
-	for _, p := range opts.paths {
-		proxy, err := newProxyWithCache(p, opts.proxy, opts.cache)
-		if err != nil {
-			return nil, err
-		}
-		m.Add(urlutils.NormalizePath(p.Path), proxy)
+func newHostRouter() *routes {
+	return &routes{
+		paths:        urlutils.NewPathTree[*proxy.ReverseProxyAdapter](),
+		defaultProxy: nil,
 	}
-
-	h = &host{m, nil}
-
-	if opts.defSettings != nil {
-		proxy, err := newProxyWithCache(
-			config.Path{Path: "/", UpstreamSettings: *opts.defSettings}, opts.proxy, opts.cache,
-		)
-		if err != nil {
-			return nil, err
-		}
-		h.defaultProxy = proxy
-	}
-
-	return h, nil
 }
 
-func newProxyWithCache(
-	path config.Path,
-	proxyOpts ProxyOptions,
-	cacheOpts CacheOptions,
-) (*ProxyAdapter, error) {
-	addr, ok := proxyOpts.Upstreams[path.Upstream]
+func (h *routes) setDefault(def *proxy.ReverseProxyAdapter) {
+	h.defaultProxy = def
+}
+
+func (h *routes) add(path string, proxy *proxy.ReverseProxyAdapter) {
+	h.paths.Add(path, proxy)
+}
+
+func (h *routes) find(path string) (*proxy.ReverseProxyAdapter, bool) {
+	p, ok := h.paths.LongestCommonPrefix(path)
 	if !ok {
-		return nil, fmt.Errorf("upstream %q not found", path.Upstream)
+		return h.defaultProxy, h.defaultProxy == nil
 	}
-	commonPrefix := urlutils.NormalizePath(path.Path)
-	proxy, err := proxy.NewReverseProxy(addr, commonPrefix, proxyOpts.Metric)
-	if err != nil {
-		return nil, err
-	}
-
-	if path.Cache == nil {
-		return NewProxyAdapter(proxy), nil
-	}
-
-	cachePaths := make(map[string]time.Duration)
-	for p, ttl := range *path.Cache {
-		fullPath, err := url.JoinPath(commonPrefix, urlutils.NormalizePath(p))
-		if err != nil {
-			return nil, err
-		}
-		cachePaths[fullPath] = ttl
-	}
-	cache := cache.NewCacheMiddleware(cachePaths, cacheOpts.Metric, cacheOpts.Cache, cacheOpts.Log)
-	return NewProxyAdapter(proxy, cache), nil
+	return p, true
 }

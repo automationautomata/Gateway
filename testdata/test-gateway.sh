@@ -1,21 +1,26 @@
 set -e
 
-check_hosts() {
-    wget -qO- http://multyple.path.ex/v1 | grep -q "test.host.multy"
-    wget -qO- http://multyple.path.ex/v2 | grep -q "test.host.multy"
-    
-    wget -qO- http://single.path.ex/something | grep -q "test.host.single"
-
-    wget -qO- http://somehost.ex/ | grep -q "test.host.single"
+test_host() {
+    echo query to $1, expected response: $2
+    wget -qO- $1 | grep -q "$2"
 }
 
-# test proxy 
-check_hosts
+test_all_hosts() {    
+    test_host http://multyple.path.ex/v1 test.host.multy
 
+    test_host http://multyple.path.ex/v2 test.host.multy
+
+    test_host http://single.path.ex/something test.host.single
+
+    test_host http://somehost.ex test.host.single 
+}
+
+echo start reverse proxy test
+test_all_hosts
 echo test proxy - success
 
-# test edge limiter 
-sleep 1.3
-check_hosts && $(wget -qO- http://somehost.ex/ 2>&1 | grep -q "Too Many Requests")
+echo start edge limiter test 
+echo wait... && sleep 1.3
+test_all_hosts && $(wget -qO- http://somehost.ex/ 2>&1 | grep -q "Too Many Requests")
 
 echo test edge limiter - success

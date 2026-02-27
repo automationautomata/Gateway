@@ -1,6 +1,8 @@
 package urlutils
 
-import "strings"
+import (
+	"strings"
+)
 
 const pathVariable = ":"
 
@@ -12,6 +14,10 @@ func NewPathTree[T any]() *PathTree[T] { return &PathTree[T]{root: newPathSegmen
 
 func (t *PathTree[T]) Add(path string, value T)   { t.root.add(path, value) }
 func (t *PathTree[T]) Find(path string) (T, bool) { return t.root.find(path) }
+
+func (t *PathTree[T]) LongestCommonPrefix(path string) (T, bool) {
+	return t.root.longestCommonPrefix(path)
+}
 
 type pathSegment[T any] struct {
 	children map[string]*pathSegment[T]
@@ -62,9 +68,11 @@ func (s *pathSegment[T]) add(path string, value T) {
 }
 
 func (s *pathSegment[T]) find(path string) (T, bool) {
+	val, isEnd := s.value, s.isEnd
+
 	segments := strings.Split(path, "/")
 	if len(segments) < 1 {
-		return s.value, s.isEnd
+		return val, isEnd
 	}
 
 	cur := s
@@ -73,10 +81,32 @@ func (s *pathSegment[T]) find(path string) (T, bool) {
 		if !ok && cur.hasPathVariable() {
 			child = cur.children[pathVariable]
 		} else if !ok {
-			var empty T
-			return empty, false
+			break
 		}
 		cur = child
 	}
-	return cur.value, cur.isEnd
+	return val, isEnd
+}
+
+func (s *pathSegment[T]) longestCommonPrefix(path string) (T, bool) {
+	segments := strings.Split(path, "/")
+	if len(segments) < 1 {
+		return s.value, s.isEnd
+	}
+
+	cur, curVal, isEnd := s, s.value, s.isEnd
+	for _, seg := range segments[1:] {
+		child, ok := cur.children[seg]
+		if !ok && cur.hasPathVariable() {
+			child = cur.children[pathVariable]
+		} else if !ok {
+			break
+		}
+
+		cur = child
+		if cur.isEnd {
+			curVal, isEnd = cur.value, cur.isEnd
+		}
+	}
+	return curVal, isEnd
 }

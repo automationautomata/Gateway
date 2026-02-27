@@ -8,7 +8,7 @@ import (
 )
 
 type LogParams struct {
-	logs []time.Time
+	Logs []time.Time
 }
 
 func (p LogParams) Marshal() ([]byte, error) { return json.Marshal(p) }
@@ -38,18 +38,18 @@ func (sw *slidingWindowLog) Action(state *limiter.State) (bool, *limiter.State, 
 
 	now := time.Now()
 	windowEnd := now.Add(-sw.windowDur)
-	ind := sort.Search(len(p.logs), func(i int) bool {
-		return p.logs[i].After(windowEnd)
+	ind := sort.Search(len(p.Logs), func(i int) bool {
+		return p.Logs[i].After(windowEnd)
 	})
 
 	if ind > 0 {
-		copy(p.logs, p.logs[ind:])
-		p.logs = p.logs[:len(p.logs)-ind]
+		copy(p.Logs, p.Logs[ind:])
+		p.Logs = p.Logs[:len(p.Logs)-ind]
 	}
 
 	allow := false
-	if len(p.logs) < sw.limit {
-		p.logs = append(p.logs, now)
+	if len(p.Logs) < sw.limit {
+		p.Logs = append(p.Logs, now)
 		allow = true
 	}
 	return allow, &limiter.State{Params: p}, nil

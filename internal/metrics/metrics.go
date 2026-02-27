@@ -24,19 +24,22 @@ func newMetric(name string, labels []string) *metric {
 		},
 		labels,
 	)
-	prometheus.Register(counter)
 	return &metric{
 		counter:    counter,
 		valuesChan: make(chan []string),
 	}
 }
 
-func (m *metric) StartCount() {
+func (m *metric) StartCount() error {
+	if err := prometheus.Register(m.counter); err != nil {
+		return err
+	}
 	go func() {
 		for val := range m.valuesChan {
 			m.counter.WithLabelValues(val...).Inc()
 		}
 	}()
+	return nil
 }
 
 type limiterMetric struct {

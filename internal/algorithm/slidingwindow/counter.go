@@ -7,9 +7,9 @@ import (
 )
 
 type CounterParams struct {
-	buckets      []int64
-	bucketTimes  []time.Time
-	currentIndex int
+	Buckets      []int64
+	BucketTimes  []time.Time
+	CurrentIndex int
 }
 
 func (p CounterParams) Marshal() ([]byte, error) { return json.Marshal(p) }
@@ -33,9 +33,9 @@ func NewSlidingWindowCounter(window time.Duration, bucketsNum int, limit int64) 
 func (sw *slidingWindowCounter) FirstState() *limiter.State {
 	return &limiter.State{
 		Params: &CounterParams{
-			buckets:      make([]int64, sw.bucketsNum),
-			bucketTimes:  make([]time.Time, sw.bucketsNum),
-			currentIndex: 0,
+			Buckets:      make([]int64, sw.bucketsNum),
+			BucketTimes:  make([]time.Time, sw.bucketsNum),
+			CurrentIndex: 0,
 		},
 	}
 }
@@ -51,37 +51,37 @@ func (sw *slidingWindowCounter) Action(state *limiter.State) (bool, *limiter.Sta
 
 	targetIndex := -1
 	for i := 0; i < sw.bucketsNum; i++ {
-		if p.bucketTimes[i].Equal(currentBucketStart) {
+		if p.BucketTimes[i].Equal(currentBucketStart) {
 			targetIndex = i
 			break
 		}
 	}
 
 	if targetIndex == -1 {
-		p.currentIndex = (p.currentIndex + 1) % sw.bucketsNum
-		targetIndex = p.currentIndex
+		p.CurrentIndex = (p.CurrentIndex + 1) % sw.bucketsNum
+		targetIndex = p.CurrentIndex
 
-		p.buckets[targetIndex] = 0
-		p.bucketTimes[targetIndex] = currentBucketStart
+		p.Buckets[targetIndex] = 0
+		p.BucketTimes[targetIndex] = currentBucketStart
 	}
 
 	cutoff := now.Add(-sw.windowSize)
 	for i := 0; i < sw.bucketsNum; i++ {
-		if !p.bucketTimes[i].IsZero() && p.bucketTimes[i].Before(cutoff) {
-			p.buckets[i] = 0
-			p.bucketTimes[i] = time.Time{}
+		if !p.BucketTimes[i].IsZero() && p.BucketTimes[i].Before(cutoff) {
+			p.Buckets[i] = 0
+			p.BucketTimes[i] = time.Time{}
 		}
 	}
 
 	var total int64
 	for i := 0; i < sw.bucketsNum; i++ {
-		start := p.bucketTimes[i]
+		start := p.BucketTimes[i]
 		if start.IsZero() {
 			continue
 		}
 		end := start.Add(sw.bucketSize)
 		if end.After(cutoff) {
-			total += p.buckets[i]
+			total += p.Buckets[i]
 		}
 	}
 
@@ -89,6 +89,6 @@ func (sw *slidingWindowCounter) Action(state *limiter.State) (bool, *limiter.Sta
 		return false, &limiter.State{Params: p}, nil
 	}
 
-	p.buckets[targetIndex]++
+	p.Buckets[targetIndex]++
 	return true, &limiter.State{Params: p}, nil
 }
