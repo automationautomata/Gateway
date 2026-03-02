@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	proxyMetricName           = "proxy_requests"
+	proxyMetricName           = "proxy"
 	httpCacheMetricName       = "http_cache"
 	edgeLimiterMetricName     = "edge_limiter"
 	internalLimiterMetricName = "internal_limiter"
@@ -37,7 +37,7 @@ const (
 )
 
 func provideGateway(fileConf config.FileConfig, envConf config.EnvConfig, rootLogger *logging.SlogAdapter) (*server.Gateway, error) {
-	redisURL := fmt.Sprint(envConf.RedisURL, "/", redisEdgeLimiterDB)
+	redisURL := fmt.Sprint(envConf.RedisURL, redisEdgeLimiterDB)
 	edgeLimiterRedis, err := provideRedisClient(redisURL)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create redis client %s: %w", redisURL, err)
@@ -48,7 +48,7 @@ func provideGateway(fileConf config.FileConfig, envConf config.EnvConfig, rootLo
 		return nil, fmt.Errorf("cannot create edge limiter %w", err)
 	}
 
-	redisURL = fmt.Sprint(envConf.RedisURL, "/", redisCacheDB)
+	redisURL = fmt.Sprint(envConf.RedisURL, redisCacheDB)
 	cacheRedis, err := provideRedisClient(redisURL)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create redis client %s: %w", redisURL, err)
@@ -101,7 +101,7 @@ func provideGateway(fileConf config.FileConfig, envConf config.EnvConfig, rootLo
 		Logger(rootLogger.Component(gatewayLoggerName))
 
 	if proxyConfig.Limiter != nil {
-		redisURL = fmt.Sprint(envConf.RedisURL, "/", redisInternalLimiterDB)
+		redisURL = fmt.Sprint(envConf.RedisURL, redisInternalLimiterDB)
 		internalLimiterRedis, err := provideRedisClient(redisURL)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create redis client %s: %w", redisURL, err)
@@ -145,7 +145,7 @@ func provideEdgeLimiterMetric() (interfaces.LimiterMetric, error) {
 }
 
 func provideInternalLimiterMetric() (interfaces.LimiterMetric, error) {
-	limMetric := metrics.NewLimiterMetric(edgeLimiterMetricName)
+	limMetric := metrics.NewLimiterMetric(internalLimiterMetricName)
 	if err := limMetric.StartCount(); err != nil {
 		return nil, err
 	}
@@ -153,8 +153,7 @@ func provideInternalLimiterMetric() (interfaces.LimiterMetric, error) {
 }
 
 func provideCacheMetric() (interfaces.CacheMetric, error) {
-	cacheMetric := metrics.NewCacheMetric(proxyMetricName)
-	cacheMetric.StartCount()
+	cacheMetric := metrics.NewCacheMetric(httpCacheMetricName)
 	if err := cacheMetric.StartCount(); err != nil {
 		return nil, err
 	}

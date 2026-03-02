@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"gateway/server/interfaces"
+	"gateway/server/pathstree"
 	"gateway/server/urlutils"
 	"net/http"
 	"time"
@@ -16,7 +17,7 @@ type requestFailedErr struct {
 func (requestFailedErr) Error() string { return "request failed" }
 
 type CacheMiddleware struct {
-	paths  *urlutils.PathTree[time.Duration]
+	paths  *pathstree.Tree[time.Duration]
 	cache  interfaces.CacheStorage[*ResponseContent]
 	metric interfaces.CacheMetric
 	log    interfaces.Logger
@@ -28,7 +29,7 @@ func NewCacheMiddleware(
 	cache interfaces.CacheStorage[*ResponseContent],
 	log interfaces.Logger,
 ) *CacheMiddleware {
-	tree := urlutils.NewPathTree[time.Duration]()
+	tree := pathstree.New[time.Duration]()
 	for p, ttl := range paths {
 		tree.Add(p, ttl)
 	}

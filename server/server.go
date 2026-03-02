@@ -32,13 +32,12 @@ func NewServer(cfg config.ServerConfig, opts ServerOptions) *Server {
 	if opts.Middlewares != nil {
 		chain(mux, opts.Middlewares)
 	}
-
 	return &Server{
 		Gateway: opts.Gateway,
 		Server: &http.Server{
 			Addr:         fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-			ReadTimeout:  cfg.ReadTimeout,
-			WriteTimeout: cfg.WriteTimeout,
+			ReadTimeout:  *cfg.ReadTimeout,
+			WriteTimeout: *cfg.WriteTimeout,
 			Handler:      mux,
 		},
 	}

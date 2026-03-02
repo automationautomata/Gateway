@@ -45,9 +45,9 @@ func NewReverseProxyAdapter(upstream, prefix string, metric interfaces.ProxyMetr
 			r.SetURL(target)
 			out, in := r.Out, r.In
 
-			out.Host = in.Host
+			out.Host = target.Host
 			out.URL.Path = strings.TrimPrefix(in.URL.Path, prefix)
-			r.Out.Header.Set("X-Forwarded-Host", r.In.Host)
+			out.Header.Set("X-Forwarded-Host", in.Host)
 		},
 	}
 	adapter := &ReverseProxyAdapter{

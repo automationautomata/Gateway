@@ -27,7 +27,7 @@ ENV PORT=80 \
     READ_TIMEOUT=10s \
     WRITE_TIMEOUT=10s \
     LOG_LEVEL=ERROR \
-    CONFIG_PATH=/usr/etc/gateway/config.yaml
+    CONFIG_PATH=/usr/etc/gateway/gateway-config.yaml
 
 EXPOSE 80
 

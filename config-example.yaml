@@ -14,12 +14,12 @@ proxy:
           - path: /api/orders
             upstream: orders
             cache:
-              /recent: 1ms
+              /unconfirmed/:order_id: 10s
 
           - path: /api/users
             upstream: users
             cache:
-              /online: 2s
+              /online: 1s
 
       - host: old.api.ex
         pathes:
@@ -34,13 +34,12 @@ proxy:
       
 edge_limiter:
   is_global: true
-  limiter:
-    type: fixed_window
-    algorithm:
-      limit: 4
-      window_duration: 1s
-    storage: 
-      ttl: 1s
+  type: fixed_window
+  algorithm:
+    limit: 4
+    window_duration: 1s
+  storage: 
+    ttl: 1s
 
 metrics:
   hosts:

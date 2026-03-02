@@ -9,16 +9,16 @@ x-test-host-template: &test_host_template
   restart: unless-stopped
 
 services:
-  test_single:
+  test-single:
     <<: *test_host_template
     hostname: test.host.single
     command: sh /run-servers.sh 8080
     networks:
       - upstreams-net
 
-  test_multy:
+  test-multi:
     <<: *test_host_template
-    hostname: test.host.multy
+    hostname: test.host.multi
     command: sh /run-servers.sh 9000 9001
     networks:
       - upstreams-net
@@ -39,11 +39,12 @@ services:
   gateway:
     build: .
     volumes:
-      - ./testdata/config.yaml:/usr/etc/gateway/config.yaml:ro
+      - ./testdata/config.yaml:/usr/etc/gateway/gateway-config.yaml:ro
     environment:
       LOG_LEVEL: DEBUG
-      EDGE_LIMITER_REDIS_URL: redis://redis:6379/0
-      INTERNAL_LIMITER_REDIS_URL: redis://redis:6379/1
+      READ_TIMEOUT: 10s
+      WRITE_TIMEOUT: 10s
+      REDIS_URL: redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
@@ -52,7 +53,7 @@ services:
       upstreams-net:
       test-client-net:
         aliases: 
-          - multyple.path.ex
+          - multiple.path.ex
           - single.path.ex
           - somehost.ex
     restart: unless-stopped
@@ -70,9 +71,9 @@ services:
     depends_on:
       gateway:
         condition: service_healthy
-      test_multy:
+      test-multi:
         condition: service_started
-      test_single:
+      test-single:
         condition: service_started
     networks:
       - test-client-net

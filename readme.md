@@ -3,35 +3,40 @@
 HTTP-gateway на Go с проксированием запросов и ограничением их количества.
 Сбор метрик — Prometheus (экспонируется на /metrics).
 **Стек:** *Go, Redis*
-Пример работы - docker-compose.test.yaml
+Пример работы:
+```bash
+docker compose -f docker-compose.test.yaml up test-client
+```
 
-Состоит из двух основных компонентов:
+Состоит из трех компонентов:
 
-- Rate Limiter:
-  - Edge limiter (внешний лимитер) - защищает сервис от перегрузки на входе
-  - Internal limiter (внутренний лимитер) - ограничивает обращения к конкретным бэкендам
-- Reverse Proxy - маршрутизация по host + path до бекенда
+- Ограничитель скорости:
+  - Edge (внешний лимитер) - защищает сервис от перегрузки на входе
+  - Internal (внутренний лимитер) - ограничивает обращения к конкретным бэкендам
+- Обратный прокси - маршрутизация по host + path до upsteam
+- Кэш - кэширование запросов в upstream
 
 ### Основные возможности
 
-- Ограничение запросов на входе (*edge limiter*) нескольних типов: глобально, по IP
-- Ограничение запросов к каждому бэкенду *(internal limiter*)
+- Ограничение запросов на входе нескольних типов: глобально, по IP
+- Ограничение запросов к каждому бэкенду
 - Алгоритмы: *fixed window*, *sliding window*, *token bucket*
 - Маршрутизация по пути и хосту
-- Prometheus-метрики для прокси и лимитеров
+- Кэширование запросов
+- Prometheus-метрики для прокси, лимитеров и кэша
 - panic recovery middleware
 - graceful shutdown
 
   
-
 ### Схема
 ```mermaid
 sequenceDiagram
     participant C as Client
     participant E as Edge Limiter (Rate Limiter)
-    participant R as Reverse Proxy
+    participant R as Reverse Proxy 
     participant I as Internal Limiter (Rate Limiter)
-    participant B as Backend
+    participant Ch as Cache
+    participant U as Upstream
 
     C->>E: HTTP-запрос
     alt Отклононен Edge Limiter
@@ -40,19 +45,22 @@ sequenceDiagram
         E->>R: Передача запроса
         R->>I: Проверка
         alt Отклононен Internal Limiter
-            I-->>R: 429 Too Many Requests
-            R-->>C: 429 Too Many Requests
+            I-->>C: 429 Too Many Requests
         else Допущен Internal Limiter
-            I->>B: Запрос в бэкенд
-            B-->>R: Ответ
-            R-->>C: Ответ
+            I->>Ch: Запрос в кэш
+            alt Запрос кэширован
+              Ch-->>C: Ответ
+            else Запрос не кэширован
+              U-->>C: Ответ
+            end
         end
     end
 ```
 
 ### Метрики
 Доступ к метрикам - по белому списку. Используются три счётчика:
-- *upstreamProxy* - количество запросов, направленных до сервису.
+- *upstream_proxy* - количество запросов, направленных до сервису.
+- *cache* - считают кэш-промахи и кэш-попадания для каждого запроса.
 - *internal_limiter* и *edge_limiter* - считают решения внутреннего лимитера, отклонил/не отклонил
 
 ### Структура конфигурации (config.yaml + env)
@@ -61,8 +69,7 @@ sequenceDiagram
 HOST=0.0.0.0
 PORT=80
 LOG_LEVEL=INFO
-EDGE_LIMITER_REDIS_URL=redis://redis:6379/0
-PROXY_LIMITER_REDIS_URL=redis://redis:6379/1
+REDIS_URL=redis://redis:6379
 ```
 
 ```yaml
@@ -81,30 +88,33 @@ proxy:
         pathes:
           - path: /api/orders
             upstream: orders
+            cache:
+              /unconfirmed/:order_id: 10s
 
           - path: /api/users
             upstream: users
-        
+            cache:
+              /online: 1s
+
       - host: old.api.ex
         pathes:
           - path: /
             upstream: legacy
     
-  limiter:                      # опционально — лимит на каждый backend
+  limiter:                      # опционально — лимит на каждый сервис
     type: token_bucket
     algorithm:
       capacity: 100
       rate: 100.5
       
-edge_limiter: 
+edge_limiter:
   is_global: true               # false = по IP, true = глобальный
-  limiter:
-    type: fixed_window
-    algorithm:
-      limit: 4
-      window_duration: 1s
-    storage: 
-      ttl: 1s
+  type: fixed_window
+  algorithm:
+    limit: 4
+    window_duration: 1s
+  storage: 
+    ttl: 1s
 
 metrics:
   hosts:
@@ -125,14 +135,6 @@ proxy:
 ```yaml
 proxy:
   router:
-    default: http://main-app:8080
-    hosts:
-      - host: api.host
-        default: http://api-v2:3000
-      - host: admin.host
-        default: http://admin:9001
-proxy:
-  router:
     upstreams:
       api: http://localhost:9000
       admin: http://localhost:9001
@@ -149,18 +151,17 @@ proxy:
 ```yaml
 edge_limiter:
   is_global: false
-  limiter:
-    type: fixed_window
-    algorithm:
-      limit: 100
-      window_duration: 1m
+  type: fixed_window
+  algorithm:
+    limit: 100
+    window_duration: 1m
 ```
+
 4. Token Bucket 500 токенов, пополнение 10/сек
 ```yaml
 edge_limiter:
-  limiter:
-    type: token_bucket
-    algorithm:
-      capacity: 500
-      rate: 10.0
+  type: token_bucket
+  algorithm:
+    capacity: 500
+    rate: 10.0
 ```

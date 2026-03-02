@@ -6,6 +6,7 @@ import (
 	"gateway/config"
 	"gateway/server"
 	"gateway/server/interfaces"
+	"time"
 
 	"gateway/server/handlers"
 	mw "gateway/server/middlewares"
@@ -21,6 +22,7 @@ const (
 	defaultIsGlobalLimiter = false
 	defaultKeyTTL          = 0
 	defaultLogLevel        = config.LevelError
+	defaultServerTimiout   = time.Second * 10
 )
 
 type Shutdown func(context.Context)
@@ -88,5 +90,15 @@ func setConfigDeafultValues(fileConf *config.FileConfig, envConf *config.EnvConf
 	if envConf.LogLevel == nil {
 		v := defaultLogLevel
 		envConf.LogLevel = &v
+	}
+
+	if envConf.ServerConfig.ReadTimeout == nil {
+		v := defaultServerTimiout
+		envConf.ServerConfig.ReadTimeout = &v
+	}
+
+	if envConf.ServerConfig.WriteTimeout == nil {
+		v := defaultServerTimiout
+		envConf.ServerConfig.WriteTimeout = &v
 	}
 }

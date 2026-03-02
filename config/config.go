@@ -23,7 +23,7 @@ type ReverseProxyConfig struct {
 }
 
 type EdgeLimiterConfig struct {
-	Limiter  LimiterSettings `yaml:"limiter"`
+	Limiter  LimiterSettings `yaml:",inline"`
 	IsGlobal *bool           `yaml:"is_global,omitempty"`
 }
 
@@ -38,10 +38,10 @@ type FileConfig struct {
 }
 
 type ServerConfig struct {
-	Host         string        `env:"HOST"`
-	Port         int           `env:"PORT"`
-	ReadTimeout  time.Duration `env:"READ_TIMEOUT"`
-	WriteTimeout time.Duration `env:"WRITE_TIMEOUT"`
+	Host         string         `env:"HOST"`
+	Port         int            `env:"PORT"`
+	ReadTimeout  *time.Duration `env:"READ_TIMEOUT"`
+	WriteTimeout *time.Duration `env:"WRITE_TIMEOUT"`
 }
 
 type EnvConfig struct {

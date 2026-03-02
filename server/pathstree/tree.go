@@ -1,4 +1,4 @@
-package urlutils
+package pathstree
 
 import (
 	"strings"
@@ -6,16 +6,16 @@ import (
 
 const pathVariable = ":"
 
-type PathTree[T any] struct {
+type Tree[T any] struct {
 	root *pathSegment[T]
 }
 
-func NewPathTree[T any]() *PathTree[T] { return &PathTree[T]{root: newPathSegment[T]()} }
+func New[T any]() *Tree[T] { return &Tree[T]{root: newPathSegment[T]()} }
 
-func (t *PathTree[T]) Add(path string, value T)   { t.root.add(path, value) }
-func (t *PathTree[T]) Find(path string) (T, bool) { return t.root.find(path) }
+func (t *Tree[T]) Add(path string, value T)   { t.root.add(path, value) }
+func (t *Tree[T]) Find(path string) (T, bool) { return t.root.find(path) }
 
-func (t *PathTree[T]) LongestCommonPrefix(path string) (T, bool) {
+func (t *Tree[T]) LongestCommonPrefix(path string) (T, bool) {
 	return t.root.longestCommonPrefix(path)
 }
 

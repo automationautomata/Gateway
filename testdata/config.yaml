@@ -1,27 +1,26 @@
 proxy:
   router:
     upstreams:
-      multy-1: http://test.host.multy:9000
-      multy-2: http://test.host.multy:9001
+      multi-1: http://test.host.multi:9000
+      multi-2: http://test.host.multi:9001
       single: http://test.host.single:8080
 
     default: single
     routes:
-      - host: multyple.path.ex
+      - host: multiple.path.ex
         default: single
         pathes:
           - path: /v1
-            upstream: multy-1
+            upstream: multi-1
 
           - path: /v2
-            upstream: multy-2
+            upstream: multi-2
             
       - host: single.path.ex
         pathes:
-          - path: /
+          - path: /asd
             upstream: single
-            cache:
-              /queries: 1s
+
   limiter:
     type: token_bucket
     algorithm:
@@ -30,13 +29,12 @@ proxy:
       
 edge_limiter:
   is_global: true
-  limiter:
-    type: fixed_window
-    algorithm:
-      limit: 4
-      window_duration: 1s
-    storage: 
-      ttl: 1s
+  type: fixed_window
+  algorithm:
+    limit: 4
+    window_duration: 1s
+  storage: 
+    ttl: 1s
 
 metrics:
   hosts:

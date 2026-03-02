@@ -1,46 +1,46 @@
 package server
 
 import (
-	"gateway/server/common"
+	"gateway/server/pathstree"
 	"gateway/server/proxy"
 	"gateway/server/urlutils"
 )
 
 type Router struct {
-	hosts         *common.SyncMap[string, *routes]
+	hosts         *syncMap[string, *routes]
 	globalDefault *proxy.ReverseProxyAdapter
 }
 
 func NewRouter() *Router {
 	return &Router{
-		hosts:         common.NewSyncMap[string, *routes](),
+		hosts:         newSyncMap[string, *routes](),
 		globalDefault: nil,
 	}
 }
 
 func (r *Router) Add(host, path string, proxy *proxy.ReverseProxyAdapter) {
-	h, ok := r.hosts.Get(host)
+	h, ok := r.hosts.get(host)
 	if !ok {
 		h = newHostRouter()
-		r.hosts.Add(host, h)
+		r.hosts.add(host, h)
 	}
 	h.add(urlutils.NormalizePath(path), proxy)
 }
 
 func (r *Router) AddDefault(host string, proxy *proxy.ReverseProxyAdapter) {
-	h, ok := r.hosts.Get(host)
+	h, ok := r.hosts.get(host)
 	if !ok {
 		h = newHostRouter()
-		r.hosts.Add(host, h)
+		r.hosts.add(host, h)
 	}
 	h.setDefault(proxy)
 }
 
 // Поиск по наибольшему общему префиксу пути
 func (r *Router) Find(hostname, path string) (*proxy.ReverseProxyAdapter, bool) {
-	hasDefault := r.globalDefault == nil
+	hasDefault := r.globalDefault != nil
 
-	h, ok := r.hosts.Get(hostname)
+	h, ok := r.hosts.get(hostname)
 	if !ok {
 		return r.globalDefault, hasDefault
 	}
@@ -53,13 +53,13 @@ func (r *Router) Find(hostname, path string) (*proxy.ReverseProxyAdapter, bool) 
 }
 
 type routes struct {
-	paths        *urlutils.PathTree[*proxy.ReverseProxyAdapter]
+	paths        *pathstree.Tree[*proxy.ReverseProxyAdapter]
 	defaultProxy *proxy.ReverseProxyAdapter
 }
 
 func newHostRouter() *routes {
 	return &routes{
-		paths:        urlutils.NewPathTree[*proxy.ReverseProxyAdapter](),
+		paths:        pathstree.New[*proxy.ReverseProxyAdapter](),
 		defaultProxy: nil,
 	}
 }
@@ -75,7 +75,7 @@ func (h *routes) add(path string, proxy *proxy.ReverseProxyAdapter) {
 func (h *routes) find(path string) (*proxy.ReverseProxyAdapter, bool) {
 	p, ok := h.paths.LongestCommonPrefix(path)
 	if !ok {
-		return h.defaultProxy, h.defaultProxy == nil
+		return h.defaultProxy, h.defaultProxy != nil
 	}
 	return p, true
 }

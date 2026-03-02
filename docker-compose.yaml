@@ -23,8 +23,9 @@ services:
     volumes:
       - ./config.yaml:/usr/etc/gateway/config.yaml:ro
     environment:
-      EDGE_LIMITER_REDIS_URL: "redis://redis:6379/0"
-      INTERNAL_LIMITER_REDIS_URL: "redis://redis:6379/1"
+      READ_TIMEOUT: 10s
+      WRITE_TIMEOUT: 10s
+      REDIS_URL: "redis://redis:6379"
     depends_on:
       redis:
         condition: service_healthy
