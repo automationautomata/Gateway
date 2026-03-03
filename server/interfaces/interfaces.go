@@ -39,8 +39,7 @@ type CacheContent interface {
 	json.Unmarshaler
 }
 
-type LoadMissedFunc[T CacheContent] func(context.Context) (T, time.Duration, error)
-
 type CacheStorage[T CacheContent] interface {
-	Get(ctx context.Context, key string, loader LoadMissedFunc[T]) (T, error)
+	Get(ctx context.Context, key string) (T, error)
+	Set(ctx context.Context, key string, value T, ttl time.Duration) error
 }

@@ -39,7 +39,7 @@ type bufferedResponseWriter struct {
 	bodyBuffer *bytes.Buffer
 }
 
-func newBufferedBodyWriter(w http.ResponseWriter) *bufferedResponseWriter {
+func newBufferedResponseWriter(w http.ResponseWriter) *bufferedResponseWriter {
 	header := w.Header().Clone()
 	if header == nil {
 		header = make(http.Header)

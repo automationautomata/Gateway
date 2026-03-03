@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"context"
 	"errors"
 	"gateway/server/interfaces"
 	"gateway/server/pathstree"
@@ -9,12 +8,6 @@ import (
 	"net/http"
 	"time"
 )
-
-type requestFailedErr struct {
-	resp *ResponseContent
-}
-
-func (requestFailedErr) Error() string { return "request failed" }
 
 type CacheMiddleware struct {
 	paths  *pathstree.Tree[time.Duration]
@@ -53,48 +46,58 @@ func (c *CacheMiddleware) Wrap(next http.Handler) http.Handler {
 				return
 			}
 
-			hit := true
-			resp, err := c.cache.Get(
-				r.Context(),
-				r.URL.String(),
-				func(ctx context.Context) (*ResponseContent, time.Duration, error) {
-					bufWriter := newBufferedBodyWriter(w)
-					next.ServeHTTP(bufWriter, r.Clone(ctx))
-					resp := bufWriter.toResponseContent()
-					hit = false
-
-					if bufWriter.statusCode >= 400 {
-						return nil, 0, requestFailedErr{resp}
-					}
-					return resp, ttl, nil
-				},
-			)
-
-			var reqErr requestFailedErr
-			if errors.As(err, &reqErr) {
-				resp = reqErr.resp
-			} else if err != nil {
-				http.Error(w, "", http.StatusInternalServerError)
-
-				c.log.Error(
-					r.Context(),
-					"cache error",
-					map[string]any{
-						"host":  urlutils.GetHost(r),
-						"path":  r.URL.Path,
-						"query": r.URL.RawQuery,
-						"error": err,
-					},
-				)
+			ok = c.serveCache(r, w)
+			if ok {
 				return
 			}
 
-			c.metric.Inc(urlutils.GetHost(r), r.URL.Path, r.URL.RawQuery, hit)
+			bufWriter := newBufferedResponseWriter(w)
+			next.ServeHTTP(bufWriter, r)
 
-			if err = resp.copyTo(w); err != nil {
+			resp := bufWriter.toResponseContent()
+			err := resp.copyTo(w)
+			if err != nil {
 				http.Error(w, "", http.StatusInternalServerError)
+				c.logErr(r, "cannot copy response", err, false)
 				return
+			}
+
+			err = c.cache.Set(r.Context(), r.URL.String(), resp, ttl)
+			if err != nil {
+				c.logErr(r, "cache set failed", err, true)
 			}
 		},
 	)
+}
+
+func (c *CacheMiddleware) serveCache(r *http.Request, w http.ResponseWriter) bool {
+	resp, err := c.cache.Get(r.Context(), r.URL.String())
+	if err == nil {
+		c.metric.Inc(urlutils.GetHost(r), r.URL.Path, r.URL.Query().Encode(), true)
+		err = resp.copyTo(w)
+		if err != nil {
+			c.logErr(r, "cannot copy response", err, true)
+			return false
+		}
+		return false
+	}
+
+	if !errors.Is(err, interfaces.ErrCacheNotFound) {
+		c.logErr(r, "cache get failed", err, true)
+		return false
+	}
+	c.metric.Inc(urlutils.GetHost(r), r.URL.Path, r.URL.Query().Encode(), false)
+	return false
+}
+
+func (c *CacheMiddleware) logErr(r *http.Request, msg string, err error, isWarn bool) {
+	fields := map[string]any{
+		"url":   r.URL.String(),
+		"error": err,
+	}
+	if isWarn {
+		c.log.Warn(r.Context(), msg, fields)
+		return
+	}
+	c.log.Error(r.Context(), msg, fields)
 }
