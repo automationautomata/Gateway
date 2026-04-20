@@ -12,11 +12,11 @@ type KeyType string
 type ContextKey string
 
 const (
-	globalKey = "global"
-
 	Global       KeyType = "global"
 	IP           KeyType = "IP"
 	ContextValue KeyType = "context"
+
+	globalKey = "global"
 
 	LimiterContextKey ContextKey = "limiter"
 )

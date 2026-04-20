@@ -1,4 +1,4 @@
-package common
+package datastructs
 
 type Set[T comparable] map[T]struct{}
 

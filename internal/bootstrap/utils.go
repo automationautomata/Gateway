@@ -3,12 +3,12 @@ package bootstrap
 import (
 	"fmt"
 	"gateway/config"
-	"gateway/internal/common"
+	"gateway/pkg/datastructs"
 	"strings"
 )
 
 func checkProxyRoutes(cfg config.RouterSettings, reserved ...string) error {
-	set := common.NewSet(reserved...)
+	set := datastructs.NewSet(reserved...)
 
 	for _, route := range cfg.Routes {
 		for _, path := range route.Paths {
